@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
     const leads = await prisma.lead.findMany({
       where: { repId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
     })
 
     return NextResponse.json(leads)
