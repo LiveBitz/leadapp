@@ -51,6 +51,7 @@ export default function RepLeadsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
+  const [search, setSearch] = useState('')
 
   // edit state
   const [editing, setEditing] = useState(false)
@@ -137,7 +138,12 @@ export default function RepLeadsPage() {
     }
   }
 
-  const filtered = leads.filter((l) => filter === 'all' || l.status === filter)
+  const filtered = leads.filter((l) => {
+    const matchesFilter = filter === 'all' || l.status === filter
+    const q = search.trim().toLowerCase()
+    const matchesSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q)
+    return matchesFilter && matchesSearch
+  })
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', {
@@ -273,6 +279,36 @@ export default function RepLeadsPage() {
           </div>
         )}
 
+        {/* Search + Filter */}
+        {!loading && !error && (
+          <div className="relative mb-4">
+            <svg
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or phone number…"
+              className="w-full border border-[#e5e5e5] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#111111] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] text-lg leading-none"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Filter tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {FILTERS.map((f) => (
@@ -304,7 +340,11 @@ export default function RepLeadsPage() {
 
         {!loading && !error && filtered.length === 0 && (
           <div className="bg-[#f5f5f5] rounded-2xl p-16 text-center">
-            <p className="text-[#6b7280]">No leads match this filter.</p>
+            <p className="text-[#6b7280]">
+              {search.trim()
+                ? `No leads match "${search.trim()}".`
+                : 'No leads match this filter.'}
+            </p>
           </div>
         )}
 
