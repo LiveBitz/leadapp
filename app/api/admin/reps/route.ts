@@ -15,7 +15,7 @@ export async function GET() {
       include: { capturedLeads: { select: { status: true } } },
     })
 
-    const result = reps.map((rep) => ({
+    const result = reps.map((rep: typeof reps[number]) => ({
       id: rep.id,
       full_name: rep.fullName,
       phone: rep.phone,
