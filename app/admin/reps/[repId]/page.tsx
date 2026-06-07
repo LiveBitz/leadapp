@@ -154,51 +154,51 @@ export default function RepLeadsPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-5xl mx-auto px-6 py-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
 
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <Link href="/admin" className="text-[#2563eb] hover:underline text-sm font-medium">
-              ← Admin Overview
-            </Link>
-            {rep && (
-              <div className="mt-3 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#2563eb] flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-bold text-xl">
-                    {rep.fullName.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-[#111111]">{rep.fullName}</h1>
-                  <p className="text-[#6b7280] text-sm">{rep.phone ?? '—'}</p>
-                </div>
+        {/* Back link */}
+        <Link href="/admin" className="text-[#2563eb] hover:underline text-sm font-medium">
+          ← Admin Overview
+        </Link>
+
+        {/* Rep header */}
+        {rep && (
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#2563eb] flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-lg sm:text-xl">
+                  {rep.fullName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-[#111111] truncate">{rep.fullName}</h1>
+                <p className="text-[#6b7280] text-sm">{rep.phone ?? '—'}</p>
+              </div>
+            </div>
+
+            {!editing && (
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={openEdit}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-[#e5e5e5] text-[#111111] text-sm font-medium hover:bg-[#f5f5f5] transition-colors text-center"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={handleDeleteRep}
+                  disabled={deleting}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-[#fca5a5] text-[#991b1b] text-sm font-medium hover:bg-[#fee2e2] transition-colors disabled:opacity-50 text-center"
+                >
+                  {deleting ? 'Removing…' : 'Remove'}
+                </button>
               </div>
             )}
           </div>
-
-          {rep && !editing && (
-            <div className="mt-7 flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={openEdit}
-                className="px-4 py-2 rounded-xl border border-[#e5e5e5] text-[#111111] text-sm font-medium hover:bg-[#f5f5f5] transition-colors"
-              >
-                Edit
-              </button>
-              <button
-                onClick={handleDeleteRep}
-                disabled={deleting}
-                className="px-4 py-2 rounded-xl border border-[#fca5a5] text-[#991b1b] text-sm font-medium hover:bg-[#fee2e2] transition-colors disabled:opacity-50"
-              >
-                {deleting ? 'Removing…' : 'Remove'}
-              </button>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Edit form */}
         {editing && rep && (
-          <div className="bg-[#f9fafb] border border-[#e5e5e5] rounded-2xl p-6 mb-6">
+          <div className="bg-[#f9fafb] border border-[#e5e5e5] rounded-2xl p-4 sm:p-6 mb-6">
             <h2 className="text-base font-semibold text-[#111111] mb-4">Edit Rep</h2>
             <div className="flex flex-col gap-4">
               <div>
@@ -213,7 +213,8 @@ export default function RepLeadsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#374151] mb-1">
-                  New Password <span className="text-[#9ca3af] font-normal">(leave blank to keep current)</span>
+                  New Password{' '}
+                  <span className="text-[#9ca3af] font-normal">(leave blank to keep current)</span>
                 </label>
                 <input
                   type="password"
@@ -223,21 +224,19 @@ export default function RepLeadsPage() {
                   placeholder="New password"
                 />
               </div>
-              {saveError && (
-                <p className="text-[#991b1b] text-sm">{saveError}</p>
-              )}
+              {saveError && <p className="text-[#991b1b] text-sm">{saveError}</p>}
               <div className="flex gap-3">
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="px-5 py-2.5 bg-[#2563eb] text-white text-sm font-medium rounded-xl hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-5 py-2.5 bg-[#2563eb] text-white text-sm font-medium rounded-xl hover:bg-[#1d4ed8] transition-colors disabled:opacity-50 text-center"
                 >
                   {saving ? 'Saving…' : 'Save Changes'}
                 </button>
                 <button
                   onClick={() => setEditing(false)}
                   disabled={saving}
-                  className="px-5 py-2.5 border border-[#e5e5e5] text-[#6b7280] text-sm font-medium rounded-xl hover:bg-[#f5f5f5] transition-colors disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-5 py-2.5 border border-[#e5e5e5] text-[#6b7280] text-sm font-medium rounded-xl hover:bg-[#f5f5f5] transition-colors disabled:opacity-50 text-center"
                 >
                   Cancel
                 </button>
@@ -252,36 +251,25 @@ export default function RepLeadsPage() {
           </div>
         )}
 
-        {/* Stats summary */}
+        {/* Stats */}
         {!loading && !error && (
-          <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
             {[
               { label: 'Total', count: leads.length, color: 'text-[#111111]' },
-              {
-                label: 'Interested',
-                count: leads.filter((l) => l.status === 'interested').length,
-                color: 'text-[#166534]',
-              },
-              {
-                label: 'Not Interested',
-                count: leads.filter((l) => l.status === 'not_interested').length,
-                color: 'text-[#991b1b]',
-              },
+              { label: 'Interested', count: leads.filter((l) => l.status === 'interested').length, color: 'text-[#166534]' },
+              { label: 'Not Interested', count: leads.filter((l) => l.status === 'not_interested').length, color: 'text-[#991b1b]' },
             ].map((s) => (
-              <div
-                key={s.label}
-                className="bg-[#f9fafb] border border-[#e5e5e5] rounded-2xl p-4 text-center"
-              >
-                <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
-                <p className="text-xs text-[#6b7280] mt-1">{s.label}</p>
+              <div key={s.label} className="bg-[#f9fafb] border border-[#e5e5e5] rounded-xl sm:rounded-2xl p-3 sm:p-4 text-center">
+                <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.count}</p>
+                <p className="text-xs text-[#6b7280] mt-0.5 leading-tight">{s.label}</p>
               </div>
             ))}
           </div>
         )}
 
-        {/* Search + Filter */}
+        {/* Search */}
         {!loading && !error && (
-          <div className="relative mb-4">
+          <div className="relative mb-3">
             <svg
               className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]"
               fill="none"
@@ -296,7 +284,7 @@ export default function RepLeadsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name or phone number…"
-              className="w-full border border-[#e5e5e5] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#111111] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
+              className="w-full border border-[#e5e5e5] rounded-xl pl-10 pr-8 py-2.5 text-sm text-[#111111] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
             />
             {search && (
               <button
@@ -310,21 +298,23 @@ export default function RepLeadsPage() {
         )}
 
         {/* Filter tabs */}
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                filter === f.key
-                  ? 'bg-[#2563eb] text-white'
-                  : 'bg-[#f5f5f5] text-[#6b7280] hover:bg-[#e5e5e5]'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {!loading && !error && (
+          <div className="flex gap-2 mb-5 flex-wrap">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+                  filter === f.key
+                    ? 'bg-[#2563eb] text-white'
+                    : 'bg-[#f5f5f5] text-[#6b7280] hover:bg-[#e5e5e5]'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {loading && (
           <div className="flex justify-center py-24">
@@ -339,11 +329,9 @@ export default function RepLeadsPage() {
         )}
 
         {!loading && !error && filtered.length === 0 && (
-          <div className="bg-[#f5f5f5] rounded-2xl p-16 text-center">
+          <div className="bg-[#f5f5f5] rounded-2xl p-12 text-center">
             <p className="text-[#6b7280]">
-              {search.trim()
-                ? `No leads match "${search.trim()}".`
-                : 'No leads match this filter.'}
+              {search.trim() ? `No leads match "${search.trim()}".` : 'No leads match this filter.'}
             </p>
           </div>
         )}
@@ -353,23 +341,21 @@ export default function RepLeadsPage() {
             {filtered.map((lead) => (
               <div
                 key={lead.id}
-                className="bg-white border border-[#e5e5e5] rounded-2xl p-5 hover:border-[#d1d5db] transition-colors"
+                className="bg-white border border-[#e5e5e5] rounded-2xl p-4 sm:p-5 hover:border-[#d1d5db] transition-colors"
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-[#111111] text-base">{lead.name}</p>
-                    <p className="text-[#6b7280] text-sm mt-0.5">{lead.phone}</p>
+                    <p className="font-semibold text-[#111111] text-sm sm:text-base truncate">{lead.name}</p>
+                    <p className="text-[#6b7280] text-xs sm:text-sm mt-0.5">{lead.phone}</p>
                     {lead.notes && (
-                      <p className="text-[#6b7280] text-sm mt-2 leading-relaxed">{lead.notes}</p>
+                      <p className="text-[#6b7280] text-xs sm:text-sm mt-2 leading-relaxed">{lead.notes}</p>
                     )}
                   </div>
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[lead.status]}`}
-                    >
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_STYLES[lead.status]}`}>
                       {STATUS_LABELS[lead.status]}
                     </span>
-                    <p className="text-xs text-[#6b7280]">Updated {formatDate(lead.updatedAt)}</p>
+                    <p className="text-xs text-[#6b7280] whitespace-nowrap">Updated {formatDate(lead.updatedAt)}</p>
                   </div>
                 </div>
               </div>
