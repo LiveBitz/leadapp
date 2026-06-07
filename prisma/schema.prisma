@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Profile {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName     String   @map("full_name")
+  phone        String?  @unique @map("phone")
+  passwordHash String?  @map("password_hash")
+  role         String   @default("rep")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  capturedLeads Lead[]    @relation("RepCapturedLeads")
+  callLogs      CallLog[]
+
+  @@map("profiles")
+}
+
+model Lead {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  phone      String
+  status     String   @default("pending")
+  repId      String?  @map("assigned_to") @db.Uuid
+  notes      String   @default("")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rep      Profile?  @relation("RepCapturedLeads", fields: [repId], references: [id], onDelete: SetNull)
+  callLogs CallLog[]
+
+  @@map("leads")
+}
+
+model CallLog {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leadId   String   @map("lead_id") @db.Uuid
+  repId    String   @map("rep_id") @db.Uuid
+  calledAt DateTime @default(now()) @map("called_at") @db.Timestamptz(6)
+  outcome  String
+
+  lead Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  rep  Profile @relation(fields: [repId], references: [id], onDelete: Cascade)
+
+  @@map("call_logs")
+}
