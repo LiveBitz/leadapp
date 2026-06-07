@@ -51,6 +51,15 @@ export default function RepLeadsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
+
+  // edit state
+  const [editing, setEditing] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  // delete state
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -69,6 +78,44 @@ export default function RepLeadsPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [repId])
+
+  function openEdit() {
+    setEditName(rep?.fullName ?? '')
+    setEditPassword('')
+    setSaveError(null)
+    setEditing(true)
+  }
+
+  async function handleSave() {
+    if (!editName.trim() && !editPassword) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const body: { fullName?: string; password?: string } = {}
+      if (editName.trim() && editName.trim() !== rep?.fullName) body.fullName = editName.trim()
+      if (editPassword) body.password = editPassword
+
+      if (Object.keys(body).length === 0) {
+        setEditing(false)
+        setSaving(false)
+        return
+      }
+
+      const res = await fetch(`/api/admin/reps/${repId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to save')
+      setRep(data)
+      setEditing(false)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function handleDeleteRep() {
     if (!rep) return
@@ -104,7 +151,7 @@ export default function RepLeadsPage() {
       <div className="max-w-5xl mx-auto px-6 py-10">
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-8">
+        <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <Link href="/admin" className="text-[#2563eb] hover:underline text-sm font-medium">
               ← Admin Overview
@@ -124,16 +171,74 @@ export default function RepLeadsPage() {
             )}
           </div>
 
-          {rep && (
-            <button
-              onClick={handleDeleteRep}
-              disabled={deleting}
-              className="mt-7 px-4 py-2 rounded-xl border border-[#fca5a5] text-[#991b1b] text-sm font-medium hover:bg-[#fee2e2] transition-colors disabled:opacity-50 flex-shrink-0"
-            >
-              {deleting ? 'Removing…' : 'Remove Rep'}
-            </button>
+          {rep && !editing && (
+            <div className="mt-7 flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={openEdit}
+                className="px-4 py-2 rounded-xl border border-[#e5e5e5] text-[#111111] text-sm font-medium hover:bg-[#f5f5f5] transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                onClick={handleDeleteRep}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl border border-[#fca5a5] text-[#991b1b] text-sm font-medium hover:bg-[#fee2e2] transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
           )}
         </div>
+
+        {/* Edit form */}
+        {editing && rep && (
+          <div className="bg-[#f9fafb] border border-[#e5e5e5] rounded-2xl p-6 mb-6">
+            <h2 className="text-base font-semibold text-[#111111] mb-4">Edit Rep</h2>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-sm font-medium text-[#374151] mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full border border-[#e5e5e5] rounded-xl px-4 py-2.5 text-sm text-[#111111] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
+                  placeholder="Full name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#374151] mb-1">
+                  New Password <span className="text-[#9ca3af] font-normal">(leave blank to keep current)</span>
+                </label>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  className="w-full border border-[#e5e5e5] rounded-xl px-4 py-2.5 text-sm text-[#111111] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
+                  placeholder="New password"
+                />
+              </div>
+              {saveError && (
+                <p className="text-[#991b1b] text-sm">{saveError}</p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-5 py-2.5 bg-[#2563eb] text-white text-sm font-medium rounded-xl hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  disabled={saving}
+                  className="px-5 py-2.5 border border-[#e5e5e5] text-[#6b7280] text-sm font-medium rounded-xl hover:bg-[#f5f5f5] transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {deleteError && (
           <div className="bg-[#fee2e2] border border-red-200 rounded-2xl p-4 mb-6">
