@@ -25,10 +25,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { phone, calledAt, duration } = (await req.json()) as {
+    const { phone, calledAt, duration, direction } = (await req.json()) as {
       phone?: string
       calledAt?: number
       duration?: number
+      direction?: 'incoming' | 'outgoing'
     }
 
     const rawPhone = phone?.trim()
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
         repId,
         status: 'pending',
         notes: '',
+        direction: direction === 'incoming' ? 'incoming' : 'outgoing',
       },
     })
 

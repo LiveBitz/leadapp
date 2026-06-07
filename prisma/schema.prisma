@@ -27,6 +27,7 @@ model Lead {
   status     String   @default("pending")
   repId      String?  @map("assigned_to") @db.Uuid
   notes      String   @default("")
+  direction  String   @default("outgoing")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
