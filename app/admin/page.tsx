@@ -3,6 +3,29 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
+
+const CallsChart = dynamic(() => import('@/components/CallsChart'), { ssr: false })
+
+interface DayStat {
+  label: string
+  total: number
+  incoming: number
+  outgoing: number
+  interested: number
+  not_interested: number
+  pending: number
+}
+
+interface Summary {
+  total: number
+  incoming: number
+  outgoing: number
+  interested: number
+  not_interested: number
+  pending: number
+  today: number
+}
 
 interface Rep {
   id: string
@@ -21,8 +44,14 @@ export default function AdminOverviewPage() {
   const [error, setError] = useState<string | null>(null)
   const [signingOut, setSigningOut] = useState(false)
   const [search, setSearch] = useState('')
+  const [stats, setStats] = useState<{ daily: DayStat[]; summary: Summary } | null>(null)
 
   useEffect(() => {
+    fetch('/api/admin/stats')
+      .then((r) => r.json())
+      .then((data) => { if (!data.error) setStats(data) })
+      .catch(() => {})
+
     fetch('/api/admin/reps')
       .then(async (res) => {
         const data = await res.json()
@@ -104,6 +133,9 @@ export default function AdminOverviewPage() {
             )}
           </div>
         )}
+
+        {/* Chart */}
+        {stats && <CallsChart daily={stats.daily} summary={stats.summary} />}
 
         {loading && (
           <div className="flex justify-center py-24">
