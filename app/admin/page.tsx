@@ -20,6 +20,7 @@ export default function AdminOverviewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     fetch('/api/admin/reps')
@@ -32,6 +33,12 @@ export default function AdminOverviewPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
+
+  const filtered = reps.filter((r) => {
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    return r.full_name.toLowerCase().includes(q) || (r.phone ?? '').includes(q)
+  })
 
   async function handleSignOut() {
     setSigningOut(true)
@@ -65,6 +72,36 @@ export default function AdminOverviewPage() {
           </div>
         </div>
 
+        {/* Search */}
+        {!loading && !error && reps.length > 0 && (
+          <div className="relative mb-6">
+            <svg
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or phone number…"
+              className="w-full border border-[#e5e5e5] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#111111] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] text-lg leading-none"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
+
         {loading && (
           <div className="flex justify-center py-24">
             <div className="w-8 h-8 border-4 border-[#2563eb] border-t-transparent rounded-full animate-spin" />
@@ -86,9 +123,15 @@ export default function AdminOverviewPage() {
           </div>
         )}
 
-        {!loading && !error && reps.length > 0 && (
+        {!loading && !error && reps.length > 0 && filtered.length === 0 && (
+          <div className="bg-[#f5f5f5] rounded-2xl p-12 text-center">
+            <p className="text-[#6b7280]">No reps match &ldquo;{search}&rdquo;.</p>
+          </div>
+        )}
+
+        {!loading && !error && filtered.length > 0 && (
           <div className="flex flex-col gap-4">
-            {reps.map((rep) => (
+            {filtered.map((rep) => (
               <Link
                 key={rep.id}
                 href={`/admin/reps/${rep.id}`}
