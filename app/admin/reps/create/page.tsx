@@ -77,10 +77,11 @@ export default function CreateRepPage() {
               </label>
               <input
                 type="text"
+                name="firstName"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="John"
-                autoComplete="off"
+                autoComplete="given-name"
                 className="border border-[#e5e5e5] rounded-xl px-4 py-3 text-[#111111] bg-[#f5f5f5] placeholder:text-[#6b7280] focus:outline-none focus:border-[#2563eb] focus:bg-white transition-colors text-base"
               />
             </div>
@@ -90,10 +91,11 @@ export default function CreateRepPage() {
               </label>
               <input
                 type="text"
+                name="lastName"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Smith"
-                autoComplete="off"
+                autoComplete="family-name"
                 className="border border-[#e5e5e5] rounded-xl px-4 py-3 text-[#111111] bg-[#f5f5f5] placeholder:text-[#6b7280] focus:outline-none focus:border-[#2563eb] focus:bg-white transition-colors text-base"
               />
             </div>
@@ -105,10 +107,11 @@ export default function CreateRepPage() {
             </label>
             <input
               type="tel"
+              name="phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="Enter phone number"
-              autoComplete="off"
+              autoComplete="tel"
               className="border border-[#e5e5e5] rounded-xl px-4 py-3 text-[#111111] bg-[#f5f5f5] placeholder:text-[#6b7280] focus:outline-none focus:border-[#2563eb] focus:bg-white transition-colors text-base"
             />
             <p className="text-xs text-[#6b7280]">This is the rep&apos;s login identifier.</p>
