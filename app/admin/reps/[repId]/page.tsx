@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+
+interface Rep {
+  id: string
+  fullName: string
+  phone: string | null
+  createdAt: string
+}
 
 interface Lead {
   id: string
@@ -37,23 +44,51 @@ const STATUS_LABELS: Record<Lead['status'], string> = {
 
 export default function RepLeadsPage() {
   const { repId } = useParams<{ repId: string }>()
+  const router = useRouter()
+
+  const [rep, setRep] = useState<Rep | null>(null)
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!repId) return
-    fetch(`/api/admin/leads/${repId}`)
-      .then(async (res) => {
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error ?? 'Failed to load leads')
-        return data
+    Promise.all([
+      fetch(`/api/admin/reps/${repId}`).then((r) => r.json()),
+      fetch(`/api/admin/leads/${repId}`).then((r) => r.json()),
+    ])
+      .then(([repData, leadsData]) => {
+        if (repData.error) throw new Error(repData.error)
+        if (leadsData.error) throw new Error(leadsData.error)
+        setRep(repData)
+        setLeads(leadsData)
       })
-      .then(setLeads)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [repId])
+
+  async function handleDeleteRep() {
+    if (!rep) return
+    const confirmed = window.confirm(
+      `Remove "${rep.fullName}"?\n\nThis will permanently delete this rep account and all ${leads.length} of their captured leads. This cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const res = await fetch(`/api/admin/reps/${repId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to delete rep')
+      router.replace('/admin')
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Failed to delete rep')
+      setDeleting(false)
+    }
+  }
 
   const filtered = leads.filter((l) => filter === 'all' || l.status === filter)
 
@@ -67,13 +102,73 @@ export default function RepLeadsPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-5xl mx-auto px-6 py-10">
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/admin" className="text-[#2563eb] hover:underline text-sm font-medium">
-            ← Admin Overview
-          </Link>
-          <h1 className="text-2xl font-bold text-[#111111]">Captured Leads</h1>
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 mb-8">
+          <div>
+            <Link href="/admin" className="text-[#2563eb] hover:underline text-sm font-medium">
+              ← Admin Overview
+            </Link>
+            {rep && (
+              <div className="mt-3 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#2563eb] flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold text-xl">
+                    {rep.fullName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-[#111111]">{rep.fullName}</h1>
+                  <p className="text-[#6b7280] text-sm">{rep.phone ?? '—'}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {rep && (
+            <button
+              onClick={handleDeleteRep}
+              disabled={deleting}
+              className="mt-7 px-4 py-2 rounded-xl border border-[#fca5a5] text-[#991b1b] text-sm font-medium hover:bg-[#fee2e2] transition-colors disabled:opacity-50 flex-shrink-0"
+            >
+              {deleting ? 'Removing…' : 'Remove Rep'}
+            </button>
+          )}
         </div>
 
+        {deleteError && (
+          <div className="bg-[#fee2e2] border border-red-200 rounded-2xl p-4 mb-6">
+            <p className="text-[#991b1b] text-sm font-medium">{deleteError}</p>
+          </div>
+        )}
+
+        {/* Stats summary */}
+        {!loading && !error && (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[
+              { label: 'Total', count: leads.length, color: 'text-[#111111]' },
+              {
+                label: 'Interested',
+                count: leads.filter((l) => l.status === 'interested').length,
+                color: 'text-[#166534]',
+              },
+              {
+                label: 'Not Interested',
+                count: leads.filter((l) => l.status === 'not_interested').length,
+                color: 'text-[#991b1b]',
+              },
+            ].map((s) => (
+              <div
+                key={s.label}
+                className="bg-[#f9fafb] border border-[#e5e5e5] rounded-2xl p-4 text-center"
+              >
+                <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
+                <p className="text-xs text-[#6b7280] mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Filter tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {FILTERS.map((f) => (
             <button
