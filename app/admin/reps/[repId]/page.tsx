@@ -4,6 +4,34 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 
+function escapeCell(v: string | null | undefined) {
+  const s = String(v ?? '')
+  return s.includes(',') || s.includes('"') || s.includes('\n')
+    ? `"${s.replace(/"/g, '""')}"`
+    : s
+}
+
+function downloadCSV(leads: Lead[], rep: Rep) {
+  const headers = ['Name', 'Phone', 'Status', 'Direction', 'Notes', 'Captured On', 'Updated On']
+  const rows = leads.map((l) => [
+    escapeCell(l.name),
+    escapeCell(l.phone),
+    escapeCell(l.status),
+    escapeCell(l.direction),
+    escapeCell(l.notes),
+    escapeCell(new Date(l.createdAt).toLocaleString()),
+    escapeCell(new Date(l.updatedAt).toLocaleString()),
+  ])
+  const csv  = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `leads_${rep.fullName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 interface Rep {
   id: string
   fullName: string
@@ -16,6 +44,7 @@ interface Lead {
   name: string
   phone: string
   status: 'pending' | 'interested' | 'not_interested'
+  direction: 'incoming' | 'outgoing'
   notes: string
   createdAt: string
   updatedAt: string
@@ -177,7 +206,19 @@ export default function RepLeadsPage() {
             </div>
 
             {!editing && (
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                {leads.length > 0 && (
+                  <button
+                    onClick={() => rep && downloadCSV(filtered.length > 0 ? filtered : leads, rep)}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#111111] text-white text-sm font-medium hover:bg-[#333] transition-colors"
+                    title="Download CSV"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 10l5 5 5-5M12 15V3" />
+                    </svg>
+                    <span>CSV</span>
+                  </button>
+                )}
                 <button
                   onClick={openEdit}
                   className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-[#e5e5e5] text-[#111111] text-sm font-medium hover:bg-[#f5f5f5] transition-colors text-center"
