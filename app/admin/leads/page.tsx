@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
 
 interface Rep {
   id: string
@@ -24,50 +23,79 @@ interface Lead {
 }
 
 const STATUS_STYLES: Record<Lead['status'], string> = {
-  pending: 'bg-[#fef9c3] text-[#854d0e]',
-  interested: 'bg-[#dcfce7] text-[#166534]',
+  pending:        'bg-[#fef9c3] text-[#854d0e]',
+  interested:     'bg-[#dcfce7] text-[#166534]',
   not_interested: 'bg-[#fee2e2] text-[#991b1b]',
 }
-
 const STATUS_LABELS: Record<Lead['status'], string> = {
-  pending: 'Pending',
-  interested: 'Interested',
+  pending:        'Pending',
+  interested:     'Interested',
   not_interested: 'Not Interested',
 }
-
 const PAGE_TITLES: Record<string, string> = {
-  today: "Today's Calls",
-  interested: 'Interested Leads',
-  pending: 'Pending Leads',
-  all: 'All Leads',
+  today:       "Today's Calls",
+  interested:  'Interested Leads',
+  pending:     'Pending Leads',
+  all:         'All Leads',
+}
+
+/* ── tiny inline SVGs so no icon library needed ── */
+function IconSearch() {
+  return (
+    <svg className="w-4 h-4 text-[#9ca3af]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+    </svg>
+  )
+}
+function IconUser() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z" />
+    </svg>
+  )
+}
+function IconArrowDown() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
+function IconArrowUp() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+    </svg>
+  )
+}
+function IconCalendar() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
+    </svg>
+  )
 }
 
 function LeadsContent() {
-  const searchParams = useSearchParams()
-  const filter = searchParams.get('filter') ?? 'all'
+  const searchParams  = useSearchParams()
+  const filter        = searchParams.get('filter') ?? 'all'
 
-  const [leads, setLeads] = useState<Lead[]>([])
+  const [leads,   setLeads]   = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [error,   setError]   = useState<string | null>(null)
+  const [search,  setSearch]  = useState('')
 
   useEffect(() => {
     setLoading(true)
     setError(null)
-
     const params = new URLSearchParams()
     if (filter === 'today') {
       params.set('date', new Date().toISOString().slice(0, 10))
-    } else if (filter === 'interested' || filter === 'pending' || filter === 'not_interested') {
+    } else if (['interested', 'pending', 'not_interested'].includes(filter)) {
       params.set('status', filter)
     }
-
     fetch(`/api/admin/leads?${params}`)
-      .then(async (r) => {
-        const data = await r.json()
-        if (!r.ok) throw new Error(data.error ?? 'Failed to load')
-        return data
-      })
+      .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d })
       .then(setLeads)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
@@ -76,51 +104,50 @@ function LeadsContent() {
   const filtered = leads.filter((l) => {
     const q = search.trim().toLowerCase()
     if (!q) return true
-    return (
-      l.name.toLowerCase().includes(q) ||
-      l.phone.includes(q) ||
-      (l.rep?.fullName.toLowerCase().includes(q) ?? false)
-    )
+    return l.name.toLowerCase().includes(q) || l.phone.includes(q) || (l.rep?.fullName.toLowerCase().includes(q) ?? false)
   })
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-    })
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+    <div className="min-h-screen bg-[#f9fafb]">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/admin" className="text-[#2563eb] hover:underline text-sm font-medium flex-shrink-0">
-            ← Admin Overview
+        <div className="mb-6">
+          <Link href="/admin" className="inline-flex items-center gap-1 text-[#2563eb] hover:underline text-sm font-medium mb-3">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Admin Overview
           </Link>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#111111]">
-            {PAGE_TITLES[filter] ?? 'Leads'}
-          </h1>
-          {!loading && (
-            <span className="ml-auto text-sm text-[#6b7280] flex-shrink-0">
-              {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
-            </span>
-          )}
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#111111]">
+              {PAGE_TITLES[filter] ?? 'Leads'}
+            </h1>
+            {!loading && (
+              <span className="text-sm font-medium text-[#6b7280] bg-white border border-[#e5e5e5] px-3 py-1 rounded-full">
+                {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Search */}
         <div className="relative mb-5">
-          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-          </svg>
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2">
+            <IconSearch />
+          </span>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, phone or rep…"
-            className="w-full border border-[#e5e5e5] rounded-xl pl-10 pr-8 py-2.5 text-sm text-[#111111] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
+            className="w-full bg-white border border-[#e5e5e5] rounded-xl pl-10 pr-8 py-2.5 text-sm text-[#111111] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent shadow-sm"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] text-lg leading-none">×</button>
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] text-xl leading-none">×</button>
           )}
         </div>
 
@@ -140,7 +167,7 @@ function LeadsContent() {
 
         {/* Empty */}
         {!loading && !error && filtered.length === 0 && (
-          <div className="bg-[#f5f5f5] rounded-2xl p-16 text-center">
+          <div className="bg-white border border-[#e5e5e5] rounded-2xl p-16 text-center shadow-sm">
             <p className="text-[#6b7280]">
               {search.trim() ? `No leads match "${search}".` : 'No leads found.'}
             </p>
@@ -151,38 +178,57 @@ function LeadsContent() {
         {!loading && !error && filtered.length > 0 && (
           <div className="flex flex-col gap-3">
             {filtered.map((lead) => (
-              <div key={lead.id} className="bg-white border border-[#e5e5e5] rounded-2xl p-4 sm:p-5 hover:border-[#d1d5db] transition-colors">
+              <div key={lead.id} className="bg-white border border-[#e5e5e5] rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-[#d1d5db] transition-all">
+
+                {/* Top row */}
                 <div className="flex items-start justify-between gap-3">
+                  {/* Left: name + phone + rep */}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-[#111111] text-sm sm:text-base truncate">{lead.name}</p>
-                    <p className="text-[#6b7280] text-xs sm:text-sm mt-0.5">{lead.phone}</p>
+                    <p className="text-[#6b7280] text-xs sm:text-sm mt-0.5 truncate">{lead.phone}</p>
 
-                    {/* Rep badge */}
                     {lead.rep && (
                       <Link
                         href={`/admin/reps/${lead.rep.id}`}
-                        className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-[#f0f4ff] text-[#2563eb] text-xs font-medium hover:bg-[#dbeafe] transition-colors"
+                        className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-[#f0f4ff] text-[#2563eb] text-xs font-medium hover:bg-[#dbeafe] transition-colors"
                       >
-                        <span>👤</span>
-                        <span>{lead.rep.fullName}</span>
+                        <IconUser />
+                        <span className="truncate max-w-[140px]">{lead.rep.fullName}</span>
                       </Link>
                     )}
-
-                    {lead.notes ? (
-                      <p className="text-[#6b7280] text-xs mt-2 leading-relaxed line-clamp-2">{lead.notes}</p>
-                    ) : null}
                   </div>
 
+                  {/* Right: badges */}
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_STYLES[lead.status]}`}>
+                    {/* Status */}
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${STATUS_STYLES[lead.status]}`}>
                       {STATUS_LABELS[lead.status]}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${lead.direction === 'incoming' ? 'bg-[#eff6ff] text-[#2563eb]' : 'bg-[#f0fdf4] text-[#16a34a]'}`}>
-                      {lead.direction === 'incoming' ? '↙ In' : '↗ Out'}
+
+                    {/* Direction */}
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                      lead.direction === 'incoming'
+                        ? 'bg-[#eff6ff] text-[#2563eb]'
+                        : 'bg-[#f0fdf4] text-[#16a34a]'
+                    }`}>
+                      {lead.direction === 'incoming' ? <IconArrowDown /> : <IconArrowUp />}
+                      {lead.direction === 'incoming' ? 'Incoming' : 'Outgoing'}
                     </span>
-                    <p className="text-xs text-[#6b7280] whitespace-nowrap">{formatDate(lead.updatedAt)}</p>
+
+                    {/* Date */}
+                    <span className="inline-flex items-center gap-1 text-xs text-[#9ca3af]">
+                      <IconCalendar />
+                      {fmt(lead.updatedAt)}
+                    </span>
                   </div>
                 </div>
+
+                {/* Notes */}
+                {lead.notes && (
+                  <p className="mt-3 pt-3 border-t border-[#f3f4f6] text-xs text-[#6b7280] leading-relaxed line-clamp-2">
+                    {lead.notes}
+                  </p>
+                )}
               </div>
             ))}
           </div>
