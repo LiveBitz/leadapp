@@ -76,6 +76,36 @@ function IconCalendar() {
   )
 }
 
+function escapeCell(v: string | null | undefined) {
+  const s = String(v ?? '')
+  return s.includes(',') || s.includes('"') || s.includes('\n')
+    ? `"${s.replace(/"/g, '""')}"`
+    : s
+}
+
+function downloadCSV(leads: Lead[], filename: string) {
+  const headers = ['Name', 'Phone', 'Status', 'Direction', 'Rep', 'Rep Phone', 'Notes', 'Captured On', 'Updated On']
+  const rows = leads.map((l) => [
+    escapeCell(l.name),
+    escapeCell(l.phone),
+    escapeCell(l.status),
+    escapeCell(l.direction),
+    escapeCell(l.rep?.fullName),
+    escapeCell(l.rep?.phone),
+    escapeCell(l.notes),
+    escapeCell(new Date(l.createdAt).toLocaleString()),
+    escapeCell(new Date(l.updatedAt).toLocaleString()),
+  ])
+  const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function LeadsContent() {
   const searchParams  = useSearchParams()
   const filter        = searchParams.get('filter') ?? 'all'
@@ -122,14 +152,32 @@ function LeadsContent() {
             </svg>
             Admin Overview
           </Link>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold text-[#111111]">
               {PAGE_TITLES[filter] ?? 'Leads'}
             </h1>
             {!loading && (
-              <span className="text-sm font-medium text-[#6b7280] bg-white border border-[#e5e5e5] px-3 py-1 rounded-full">
-                {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
-              </span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-sm font-medium text-[#6b7280] bg-white border border-[#e5e5e5] px-3 py-1 rounded-full">
+                  {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
+                </span>
+                {filtered.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const date = new Date().toISOString().slice(0, 10)
+                      downloadCSV(filtered, `leads_${filter}_${date}.csv`)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#111111] text-white text-xs font-medium rounded-xl hover:bg-[#333] transition-colors shadow-sm"
+                    title="Download CSV"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 10l5 5 5-5M12 15V3" />
+                    </svg>
+                    <span className="hidden sm:inline">Download CSV</span>
+                    <span className="sm:hidden">CSV</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
