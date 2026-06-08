@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import {
   BarChart,
   Bar,
@@ -62,10 +63,10 @@ const CustomTooltip = ({
 
 export default function CallsChart({ daily, summary }: Props) {
   const summaryCards = [
-    { label: "Today's Calls", value: summary.today, color: 'text-[#2563eb]', bg: 'bg-[#eff6ff]' },
-    { label: 'Total Leads', value: summary.total, color: 'text-[#111111]', bg: 'bg-[#f9fafb]' },
-    { label: 'Interested', value: summary.interested, color: 'text-[#166534]', bg: 'bg-[#dcfce7]' },
-    { label: 'Pending', value: summary.pending, color: 'text-[#854d0e]', bg: 'bg-[#fef9c3]' },
+    { label: "Today's Calls", value: summary.today, color: 'text-[#2563eb]', bg: 'bg-[#eff6ff]', filter: 'today' },
+    { label: 'Total Leads', value: summary.total, color: 'text-[#111111]', bg: 'bg-[#f9fafb]', filter: 'all' },
+    { label: 'Interested', value: summary.interested, color: 'text-[#166534]', bg: 'bg-[#dcfce7]', filter: 'interested' },
+    { label: 'Pending', value: summary.pending, color: 'text-[#854d0e]', bg: 'bg-[#fef9c3]', filter: 'pending' },
   ]
 
   return (
@@ -76,14 +77,19 @@ export default function CallsChart({ daily, summary }: Props) {
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {summaryCards.map((s) => (
-          <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
+          <Link
+            key={s.label}
+            href={`/admin/leads?filter=${s.filter}`}
+            className={`${s.bg} rounded-xl p-3 text-center hover:opacity-80 active:scale-95 transition-all cursor-pointer`}
+          >
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
             <p className="text-xs text-[#6b7280] mt-0.5">{s.label}</p>
-          </div>
+          </Link>
         ))}
       </div>
 
       {/* Bar chart */}
+
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={daily} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barGap={3}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
