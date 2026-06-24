@@ -35,6 +35,15 @@ interface Summary {
 interface Props {
   daily: DayStat[]
   summary: Summary
+  isFiltered?: boolean
+  fromDate?: string
+  toDate?: string
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  })
 }
 
 const CustomTooltip = ({
@@ -61,7 +70,7 @@ const CustomTooltip = ({
   )
 }
 
-export default function CallsChart({ daily, summary }: Props) {
+export default function CallsChart({ daily, summary, isFiltered, fromDate, toDate }: Props) {
   const summaryCards = [
     { label: "Today's Calls", value: summary.today, color: 'text-[#2563eb]', bg: 'bg-[#eff6ff]', filter: 'today' },
     { label: 'Total Leads', value: summary.total, color: 'text-[#111111]', bg: 'bg-[#f9fafb]', filter: 'all' },
@@ -69,10 +78,14 @@ export default function CallsChart({ daily, summary }: Props) {
     { label: 'Pending', value: summary.pending, color: 'text-[#854d0e]', bg: 'bg-[#fef9c3]', filter: 'pending' },
   ]
 
+  const subtitle = isFiltered && (fromDate || toDate)
+    ? `${fromDate ? fmtDate(fromDate) : 'Start'} → ${toDate ? fmtDate(toDate) : 'Today'}`
+    : 'Last 7 days — incoming & outgoing calls captured'
+
   return (
     <div className="bg-white border border-[#e5e5e5] rounded-2xl p-4 sm:p-6 mb-6">
       <h2 className="text-base sm:text-lg font-bold text-[#111111] mb-1">Call Activity</h2>
-      <p className="text-xs text-[#6b7280] mb-5">Last 7 days — incoming &amp; outgoing calls captured</p>
+      <p className="text-xs text-[#6b7280] mb-5">{subtitle}</p>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

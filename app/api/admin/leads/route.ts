@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAdminSession } from '@/lib/session'
 
+function parseDateParam(value: string | null, endOfDay = false) {
+  if (!value) return null
+  const date = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) return null
+  if (endOfDay) date.setUTCHours(23, 59, 59, 999)
+  return date
+}
+
 export async function GET(req: NextRequest) {
   try {
     if (!(await getAdminSession())) {
@@ -11,6 +19,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')   // pending | interested | not_interested
     const date = searchParams.get('date')        // ISO date string — filter by that day only
+    const from = parseDateParam(searchParams.get('from'))
+    const to = parseDateParam(searchParams.get('to'), true)
 
     const where: Record<string, unknown> = {}
 
@@ -22,6 +32,11 @@ export async function GET(req: NextRequest) {
       const end = new Date(date)
       end.setHours(23, 59, 59, 999)
       where.createdAt = { gte: start, lte: end }
+    } else if (from || to) {
+      where.createdAt = {
+        ...(from ? { gte: from } : {}),
+        ...(to ? { lte: to } : {}),
+      }
     }
 
     const leads = await prisma.lead.findMany({

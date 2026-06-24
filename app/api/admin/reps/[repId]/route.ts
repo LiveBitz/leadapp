@@ -3,6 +3,10 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getAdminSession } from '@/lib/session'
 
+function isNotFound(e: unknown): boolean {
+  return (e as { code?: string })?.code === 'P2025'
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ repId: string }> },
@@ -39,14 +43,6 @@ export async function PATCH(
     }
 
     const { repId } = await params
-
-    const rep = await prisma.profile.findUnique({
-      where: { id: repId, role: 'rep' },
-    })
-    if (!rep) {
-      return NextResponse.json({ error: 'Rep not found' }, { status: 404 })
-    }
-
     const { fullName, password } = (await req.json()) as {
       fullName?: string
       password?: string
@@ -60,13 +56,20 @@ export async function PATCH(
     if (fullName?.trim()) data.fullName = fullName.trim()
     if (password) data.passwordHash = await bcrypt.hash(password, 12)
 
-    const updated = await prisma.profile.update({
-      where: { id: repId },
-      data,
-      select: { id: true, fullName: true, phone: true, createdAt: true },
-    })
-
-    return NextResponse.json(updated)
+    // Single query — update returns P2025 if not found, no separate findUnique needed
+    try {
+      const updated = await prisma.profile.update({
+        where: { id: repId },
+        data,
+        select: { id: true, fullName: true, phone: true, createdAt: true },
+      })
+      return NextResponse.json(updated)
+    } catch (e) {
+      if (isNotFound(e)) {
+        return NextResponse.json({ error: 'Rep not found' }, { status: 404 })
+      }
+      throw e
+    }
   } catch (error) {
     console.error('[PATCH /api/admin/reps/[repId]]', error)
     return NextResponse.json({ error: 'Failed to update rep' }, { status: 500 })
@@ -84,20 +87,19 @@ export async function DELETE(
 
     const { repId } = await params
 
-    const rep = await prisma.profile.findUnique({
-      where: { id: repId, role: 'rep' },
-    })
-    if (!rep) {
-      return NextResponse.json({ error: 'Rep not found' }, { status: 404 })
+    // Transaction handles existence check — P2025 thrown if profile not found
+    try {
+      await prisma.$transaction([
+        prisma.callLog.deleteMany({ where: { repId } }),
+        prisma.lead.deleteMany({ where: { repId } }),
+        prisma.profile.delete({ where: { id: repId } }),
+      ])
+    } catch (e) {
+      if (isNotFound(e)) {
+        return NextResponse.json({ error: 'Rep not found' }, { status: 404 })
+      }
+      throw e
     }
-
-    // Delete in order: call_logs → leads → profile
-    // (call_logs also cascade from leads, but deleting by repId first is explicit)
-    await prisma.$transaction([
-      prisma.callLog.deleteMany({ where: { repId } }),
-      prisma.lead.deleteMany({ where: { repId } }),
-      prisma.profile.delete({ where: { id: repId } }),
-    ])
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getRepIdFromRequest } from '@/lib/repAuth'
 
+function isNotFound(e: unknown): boolean {
+  return (e as { code?: string })?.code === 'P2025'
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -40,15 +44,11 @@ export async function DELETE(
 
     const { id } = await params
 
-    const existing = await prisma.lead.findFirst({
-      where: { id, repId },
-    })
-    if (!existing) {
+    // deleteMany does ownership check + delete in one query (call_logs cascade automatically)
+    const { count } = await prisma.lead.deleteMany({ where: { id, repId } })
+    if (count === 0) {
       return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 })
     }
-
-    // call_logs cascade-delete automatically (onDelete: Cascade in schema)
-    await prisma.lead.delete({ where: { id } })
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -78,27 +78,29 @@ export async function PATCH(
       )
     }
 
-    const existing = await prisma.lead.findFirst({
+    // Ownership check + update in one query
+    const { count } = await prisma.lead.updateMany({
       where: { id, repId },
-    })
-    if (!existing) {
-      return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 })
-    }
-
-    const updated = await prisma.lead.update({
-      where: { id },
       data: {
         status,
         ...(notes !== undefined ? { notes } : {}),
       },
     })
+    if (count === 0) {
+      return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 })
+    }
 
-    await prisma.callLog.create({
-      data: { leadId: id, repId, outcome: status },
-    })
+    // Fetch updated record + create call log in parallel — single round trip
+    const [updated] = await Promise.all([
+      prisma.lead.findUnique({ where: { id } }),
+      prisma.callLog.create({ data: { leadId: id, repId, outcome: status } }),
+    ])
 
     return NextResponse.json(updated)
   } catch (error) {
+    if (isNotFound(error)) {
+      return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 })
+    }
     console.error('[PATCH /api/leads/[id]]', error)
     return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 })
   }

@@ -2,20 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getRepIdFromRequest } from '@/lib/repAuth'
 
-/** Strip all non-digit characters for loose phone matching. */
+// Normalize to last 10 digits — tolerates country code differences (+1, 0, etc.)
 function normalizePhone(value: string): string {
-  return value.replace(/\D/g, '')
-}
-
-/**
- * Two numbers match if their digit-only strings are equal,
- * or one ends with the other (handles country code differences).
- */
-function phonesMatch(a: string, b: string): boolean {
-  const left = normalizePhone(a)
-  const right = normalizePhone(b)
-  if (!left || !right) return false
-  return left === right || left.endsWith(right) || right.endsWith(left)
+  return value.replace(/\D/g, '').slice(-10)
 }
 
 export async function POST(req: NextRequest) {
@@ -37,33 +26,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'phone is required' }, { status: 400 })
     }
 
-    const normalised = normalizePhone(rawPhone)
-    if (!normalised) {
+    const normalized = normalizePhone(rawPhone)
+    if (!normalized) {
       return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 })
     }
 
-    // Fetch all leads for this rep so we can do a loose phone match.
-    // For large datasets this should be replaced with a DB-level normalisation.
-    const repLeads = await prisma.lead.findMany({
-      where: { repId },
-      select: { id: true, phone: true },
+    // Single indexed lookup — hits (repId, phoneNormalized) compound index
+    const duplicate = await prisma.lead.findFirst({
+      where: { repId, phoneNormalized: normalized },
     })
 
-    const duplicate = repLeads.find((l) => phonesMatch(l.phone, rawPhone))
-
     if (duplicate) {
-      const existing = await prisma.lead.findUnique({ where: { id: duplicate.id } })
-      return NextResponse.json({ lead: existing, created: false })
+      return NextResponse.json({ lead: duplicate, created: false })
     }
 
     const lead = await prisma.lead.create({
       data: {
-        name: rawPhone,
-        phone: rawPhone,
+        name:           rawPhone,
+        phone:          rawPhone,
+        phoneNormalized: normalized,
         repId,
-        status: 'pending',
-        notes: '',
-        direction: direction === 'incoming' ? 'incoming' : 'outgoing',
+        status:         'pending',
+        notes:          '',
+        direction:      direction === 'incoming' ? 'incoming' : 'outgoing',
       },
     })
 

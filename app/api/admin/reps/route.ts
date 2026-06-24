@@ -3,16 +3,37 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getAdminSession } from '@/lib/session'
 
-export async function GET() {
+function parseDateParam(value: string | null, endOfDay = false) {
+  if (!value) return null
+  const date = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) return null
+  if (endOfDay) date.setUTCHours(23, 59, 59, 999)
+  return date
+}
+
+export async function GET(req: NextRequest) {
   try {
     if (!(await getAdminSession())) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { searchParams } = new URL(req.url)
+    const from = parseDateParam(searchParams.get('from'))
+    const to = parseDateParam(searchParams.get('to'), true)
+    const createdAt = {
+      ...(from ? { gte: from } : {}),
+      ...(to ? { lte: to } : {}),
+    }
+
     const reps = await prisma.profile.findMany({
       where: { role: 'rep' },
       orderBy: { fullName: 'asc' },
-      include: { capturedLeads: { select: { status: true } } },
+      include: {
+        capturedLeads: {
+          where: Object.keys(createdAt).length ? { createdAt } : undefined,
+          select: { status: true },
+        },
+      },
     })
 
     const result = reps.map((rep: typeof reps[number]) => ({

@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import DateRangePicker from '@/components/DateRangePicker'
 
 interface Rep {
   id: string
@@ -110,10 +111,12 @@ function LeadsContent() {
   const searchParams  = useSearchParams()
   const filter        = searchParams.get('filter') ?? 'all'
 
-  const [leads,   setLeads]   = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-  const [search,  setSearch]  = useState('')
+  const [leads,    setLeads]    = useState<Lead[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [error,    setError]    = useState<string | null>(null)
+  const [search,   setSearch]   = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate,   setToDate]   = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -124,12 +127,14 @@ function LeadsContent() {
     } else if (['interested', 'pending', 'not_interested'].includes(filter)) {
       params.set('status', filter)
     }
+    if (fromDate) params.set('from', fromDate)
+    if (toDate)   params.set('to',   toDate)
     fetch(`/api/admin/leads?${params}`)
       .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d })
       .then(setLeads)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [filter])
+  }, [filter, fromDate, toDate])
 
   const filtered = leads.filter((l) => {
     const q = search.trim().toLowerCase()
@@ -181,6 +186,17 @@ function LeadsContent() {
             )}
           </div>
         </div>
+
+        {/* Date range filter — hidden on 'today' filter since that already pins the date */}
+        {filter !== 'today' && (
+          <div className="mb-4 p-3 bg-white border border-[#e5e5e5] rounded-2xl shadow-sm">
+            <DateRangePicker
+              from={fromDate}
+              to={toDate}
+              onChange={(f, t) => { setFromDate(f); setToDate(t) }}
+            />
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative mb-5">

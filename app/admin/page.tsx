@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import DateRangePicker from '@/components/DateRangePicker'
 
 const CallsChart = dynamic(() => import('@/components/CallsChart'), { ssr: false })
 
@@ -44,15 +45,25 @@ export default function AdminOverviewPage() {
   const [error, setError] = useState<string | null>(null)
   const [signingOut, setSigningOut] = useState(false)
   const [search, setSearch] = useState('')
-  const [stats, setStats] = useState<{ daily: DayStat[]; summary: Summary } | null>(null)
+  const [stats, setStats] = useState<{ daily: DayStat[]; summary: Summary; isFiltered?: boolean } | null>(null)
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   useEffect(() => {
-    fetch('/api/admin/stats')
+    const params = new URLSearchParams()
+    if (fromDate) params.set('from', fromDate)
+    if (toDate) params.set('to', toDate)
+    const qs = params.toString() ? `?${params}` : ''
+
+    setLoading(true)
+    setError(null)
+
+    fetch(`/api/admin/stats${qs}`)
       .then((r) => r.json())
       .then((data) => { if (!data.error) setStats(data) })
       .catch(() => {})
 
-    fetch('/api/admin/reps')
+    fetch(`/api/admin/reps${qs}`)
       .then(async (res) => {
         const data = await res.json()
         if (!res.ok) throw new Error(data.error ?? 'Failed to load reps')
@@ -61,7 +72,7 @@ export default function AdminOverviewPage() {
       .then((data) => setReps(data))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [fromDate, toDate])
 
   const filtered = reps.filter((r) => {
     const q = search.trim().toLowerCase()
@@ -104,6 +115,15 @@ export default function AdminOverviewPage() {
           </div>
         </div>
 
+        {/* Date range filter */}
+        <div className="mb-5 p-3 bg-[#f9fafb] border border-[#e5e5e5] rounded-2xl">
+          <DateRangePicker
+            from={fromDate}
+            to={toDate}
+            onChange={(f, t) => { setFromDate(f); setToDate(t) }}
+          />
+        </div>
+
         {/* Search */}
         {!loading && !error && reps.length > 0 && (
           <div className="relative mb-5">
@@ -135,7 +155,15 @@ export default function AdminOverviewPage() {
         )}
 
         {/* Chart */}
-        {stats && <CallsChart daily={stats.daily} summary={stats.summary} />}
+        {stats && (
+          <CallsChart
+            daily={stats.daily}
+            summary={stats.summary}
+            isFiltered={stats.isFiltered}
+            fromDate={fromDate}
+            toDate={toDate}
+          />
+        )}
 
         {loading && (
           <div className="flex justify-center py-24">
