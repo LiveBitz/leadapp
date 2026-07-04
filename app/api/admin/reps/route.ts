@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
       interested_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'interested').length,
       not_interested_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'not_interested').length,
       pending_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'pending').length,
+      deal_closed_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'deal_closed').length,
     }))
 
     return NextResponse.json(result)

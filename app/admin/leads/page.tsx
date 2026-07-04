@@ -15,7 +15,7 @@ interface Lead {
   id: string
   name: string
   phone: string
-  status: 'pending' | 'interested' | 'not_interested'
+  status: 'pending' | 'interested' | 'not_interested' | 'deal_closed'
   direction: 'incoming' | 'outgoing'
   notes: string
   createdAt: string
@@ -27,17 +27,20 @@ const STATUS_STYLES: Record<Lead['status'], string> = {
   pending:        'bg-[#fef9c3] text-[#854d0e]',
   interested:     'bg-[#dcfce7] text-[#166534]',
   not_interested: 'bg-[#fee2e2] text-[#991b1b]',
+  deal_closed:    'bg-[#ede9fe] text-[#5b21b6]',
 }
 const STATUS_LABELS: Record<Lead['status'], string> = {
   pending:        'Pending',
   interested:     'Interested',
   not_interested: 'Not Interested',
+  deal_closed:    'Deal Closed 🎉',
 }
 const PAGE_TITLES: Record<string, string> = {
-  today:       "Today's Calls",
-  interested:  'Interested Leads',
-  pending:     'Pending Leads',
-  all:         'All Leads',
+  today:        "Today's Calls",
+  interested:   'Interested Leads',
+  pending:      'Pending Leads',
+  deal_closed:  'Deal Closed Leads',
+  all:          'All Leads',
 }
 
 /* ── tiny inline SVGs so no icon library needed ── */
@@ -124,7 +127,7 @@ function LeadsContent() {
     const params = new URLSearchParams()
     if (filter === 'today') {
       params.set('date', new Date().toISOString().slice(0, 10))
-    } else if (['interested', 'pending', 'not_interested'].includes(filter)) {
+    } else if (['interested', 'pending', 'not_interested', 'deal_closed'].includes(filter)) {
       params.set('status', filter)
     }
     if (fromDate) params.set('from', fromDate)

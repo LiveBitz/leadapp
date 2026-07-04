@@ -71,9 +71,9 @@ export async function PATCH(
     const body = await req.json()
     const { status, notes } = body as { status: string; notes?: string }
 
-    if (!['interested', 'not_interested'].includes(status)) {
+    if (!['interested', 'not_interested', 'deal_closed'].includes(status)) {
       return NextResponse.json(
-        { error: 'Invalid status. Must be "interested" or "not_interested".' },
+        { error: 'Invalid status. Must be "interested", "not_interested", or "deal_closed".' },
         { status: 400 },
       )
     }

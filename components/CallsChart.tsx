@@ -20,6 +20,7 @@ interface DayStat {
   interested: number
   not_interested: number
   pending: number
+  deal_closed: number
 }
 
 interface Summary {
@@ -29,6 +30,7 @@ interface Summary {
   interested: number
   not_interested: number
   pending: number
+  deal_closed: number
   today: number
 }
 
@@ -76,6 +78,7 @@ export default function CallsChart({ daily, summary, isFiltered, fromDate, toDat
     { label: 'Total Leads', value: summary.total, color: 'text-[#111111]', bg: 'bg-[#f9fafb]', filter: 'all' },
     { label: 'Interested', value: summary.interested, color: 'text-[#166534]', bg: 'bg-[#dcfce7]', filter: 'interested' },
     { label: 'Pending', value: summary.pending, color: 'text-[#854d0e]', bg: 'bg-[#fef9c3]', filter: 'pending' },
+    { label: 'Deal Closed', value: summary.deal_closed, color: 'text-[#5b21b6]', bg: 'bg-[#ede9fe]', filter: 'deal_closed' },
   ]
 
   const subtitle = isFiltered && (fromDate || toDate)
@@ -88,7 +91,7 @@ export default function CallsChart({ daily, summary, isFiltered, fromDate, toDat
       <p className="text-xs text-[#6b7280] mb-5">{subtitle}</p>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
         {summaryCards.map((s) => (
           <Link
             key={s.label}

@@ -77,6 +77,7 @@ export async function GET(req: NextRequest) {
         interested:     dayLeads.filter((l) => l.status === 'interested').length,
         not_interested: dayLeads.filter((l) => l.status === 'not_interested').length,
         pending:        dayLeads.filter((l) => l.status === 'pending').length,
+        deal_closed:    dayLeads.filter((l) => l.status === 'deal_closed').length,
       }
     })
 
@@ -124,6 +125,7 @@ export async function GET(req: NextRequest) {
       interested:     countByStatus['interested']   ?? 0,
       not_interested: countByStatus['not_interested'] ?? 0,
       pending:        countByStatus['pending']      ?? 0,
+      deal_closed:    countByStatus['deal_closed']  ?? 0,
       today:          todayCount,
     }
 

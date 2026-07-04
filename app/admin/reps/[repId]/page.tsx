@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import DateRangePicker from '@/components/DateRangePicker'
 
 function escapeCell(v: string | null | undefined) {
   const s = String(v ?? '')
@@ -43,32 +44,35 @@ interface Lead {
   id: string
   name: string
   phone: string
-  status: 'pending' | 'interested' | 'not_interested'
+  status: 'pending' | 'interested' | 'not_interested' | 'deal_closed'
   direction: 'incoming' | 'outgoing'
   notes: string
   createdAt: string
   updatedAt: string
 }
 
-type Filter = 'all' | 'pending' | 'interested' | 'not_interested'
+type Filter = 'all' | 'pending' | 'interested' | 'not_interested' | 'deal_closed'
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
   { key: 'interested', label: 'Interested' },
   { key: 'not_interested', label: 'Not Interested' },
+  { key: 'deal_closed', label: 'Deal Closed' },
 ]
 
 const STATUS_STYLES: Record<Lead['status'], string> = {
   pending: 'bg-[#fef9c3] text-[#854d0e]',
   interested: 'bg-[#dcfce7] text-[#166534]',
   not_interested: 'bg-[#fee2e2] text-[#991b1b]',
+  deal_closed: 'bg-[#ede9fe] text-[#5b21b6]',
 }
 
 const STATUS_LABELS: Record<Lead['status'], string> = {
   pending: 'Pending',
   interested: 'Interested',
   not_interested: 'Not Interested',
+  deal_closed: 'Deal Closed 🎉',
 }
 
 export default function RepLeadsPage() {
@@ -81,6 +85,8 @@ export default function RepLeadsPage() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   // edit state
   const [editing, setEditing] = useState(false)
@@ -93,21 +99,29 @@ export default function RepLeadsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
+  // Rep profile is static — fetch once
   useEffect(() => {
     if (!repId) return
-    Promise.all([
-      fetch(`/api/admin/reps/${repId}`).then((r) => r.json()),
-      fetch(`/api/admin/leads/${repId}`).then((r) => r.json()),
-    ])
-      .then(([repData, leadsData]) => {
-        if (repData.error) throw new Error(repData.error)
-        if (leadsData.error) throw new Error(leadsData.error)
-        setRep(repData)
-        setLeads(leadsData)
-      })
+    fetch(`/api/admin/reps/${repId}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.error) throw new Error(data.error); setRep(data) })
+      .catch((e) => setError(e.message))
+  }, [repId])
+
+  // Leads depend on the date range — re-fetch whenever it changes
+  useEffect(() => {
+    if (!repId) return
+    setLoading(true)
+    setError(null)
+    const params = new URLSearchParams()
+    if (fromDate) params.set('from', fromDate)
+    if (toDate) params.set('to', toDate)
+    fetch(`/api/admin/leads/${repId}?${params}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.error) throw new Error(data.error); setLeads(data) })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [repId])
+  }, [repId, fromDate, toDate])
 
   function openEdit() {
     setEditName(rep?.fullName ?? '')
@@ -292,13 +306,23 @@ export default function RepLeadsPage() {
           </div>
         )}
 
+        {/* Date range filter */}
+        <div className="mb-4 p-3 bg-white border border-[#e5e5e5] rounded-2xl shadow-sm">
+          <DateRangePicker
+            from={fromDate}
+            to={toDate}
+            onChange={(f, t) => { setFromDate(f); setToDate(t) }}
+          />
+        </div>
+
         {/* Stats */}
         {!loading && !error && (
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-5">
             {[
               { label: 'Total', count: leads.length, color: 'text-[#111111]' },
               { label: 'Interested', count: leads.filter((l) => l.status === 'interested').length, color: 'text-[#166534]' },
               { label: 'Not Interested', count: leads.filter((l) => l.status === 'not_interested').length, color: 'text-[#991b1b]' },
+              { label: 'Deal Closed', count: leads.filter((l) => l.status === 'deal_closed').length, color: 'text-[#5b21b6]' },
             ].map((s) => (
               <div key={s.label} className="bg-[#f9fafb] border border-[#e5e5e5] rounded-xl sm:rounded-2xl p-3 sm:p-4 text-center">
                 <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.count}</p>

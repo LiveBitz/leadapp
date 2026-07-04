@@ -16,6 +16,7 @@ interface DayStat {
   interested: number
   not_interested: number
   pending: number
+  deal_closed: number
 }
 
 interface Summary {
@@ -25,6 +26,7 @@ interface Summary {
   interested: number
   not_interested: number
   pending: number
+  deal_closed: number
   today: number
 }
 
@@ -36,6 +38,7 @@ interface Rep {
   interested_count: number
   not_interested_count: number
   pending_count: number
+  deal_closed_count: number
 }
 
 export default function AdminOverviewPage() {
@@ -233,6 +236,9 @@ export default function AdminOverviewPage() {
                       </span>
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-[#fee2e2] text-[#991b1b] whitespace-nowrap">
                         {rep.not_interested_count} Not Interested
+                      </span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-[#ede9fe] text-[#5b21b6] whitespace-nowrap">
+                        {rep.deal_closed_count} Deal Closed
                       </span>
                     </div>
                   </div>
