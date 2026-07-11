@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       include: {
         capturedLeads: {
           where: Object.keys(createdAt).length ? { createdAt } : undefined,
-          select: { status: true },
+          select: { status: true, direction: true },
         },
       },
     })
@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
       not_interested_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'not_interested').length,
       pending_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'pending').length,
       deal_closed_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'deal_closed').length,
+      missed_count: rep.capturedLeads.filter((l: { direction: string }) => l.direction === 'missed').length,
     }))
 
     return NextResponse.json(result)

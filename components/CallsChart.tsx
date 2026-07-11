@@ -17,6 +17,7 @@ interface DayStat {
   total: number
   incoming: number
   outgoing: number
+  missed: number
   interested: number
   not_interested: number
   pending: number
@@ -27,11 +28,13 @@ interface Summary {
   total: number
   incoming: number
   outgoing: number
+  missed: number
   interested: number
   not_interested: number
   pending: number
   deal_closed: number
   today: number
+  missed_today: number
 }
 
 interface Props {
@@ -75,6 +78,7 @@ const CustomTooltip = ({
 export default function CallsChart({ daily, summary, isFiltered, fromDate, toDate }: Props) {
   const summaryCards = [
     { label: "Today's Calls", value: summary.today, color: 'text-[#2563eb]', bg: 'bg-[#eff6ff]', filter: 'today' },
+    { label: 'Missed Today', value: summary.missed_today, color: 'text-[#dc2626]', bg: 'bg-[#fef2f2]', filter: 'missed' },
     { label: 'Total Leads', value: summary.total, color: 'text-[#111111]', bg: 'bg-[#f9fafb]', filter: 'all' },
     { label: 'Interested', value: summary.interested, color: 'text-[#166534]', bg: 'bg-[#dcfce7]', filter: 'interested' },
     { label: 'Pending', value: summary.pending, color: 'text-[#854d0e]', bg: 'bg-[#fef9c3]', filter: 'pending' },
@@ -83,7 +87,7 @@ export default function CallsChart({ daily, summary, isFiltered, fromDate, toDat
 
   const subtitle = isFiltered && (fromDate || toDate)
     ? `${fromDate ? fmtDate(fromDate) : 'Start'} → ${toDate ? fmtDate(toDate) : 'Today'}`
-    : 'Last 7 days — incoming & outgoing calls captured'
+    : 'Last 7 days — incoming, outgoing & missed calls captured'
 
   return (
     <div className="bg-white border border-[#e5e5e5] rounded-2xl p-4 sm:p-6 mb-6">
@@ -91,7 +95,7 @@ export default function CallsChart({ daily, summary, isFiltered, fromDate, toDat
       <p className="text-xs text-[#6b7280] mb-5">{subtitle}</p>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mb-6">
         {summaryCards.map((s) => (
           <Link
             key={s.label}
@@ -129,6 +133,7 @@ export default function CallsChart({ daily, summary, isFiltered, fromDate, toDat
           />
           <Bar dataKey="outgoing" name="Outgoing" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={40} />
           <Bar dataKey="incoming" name="Incoming" fill="#2563eb" radius={[4, 4, 0, 0]} maxBarSize={40} />
+          <Bar dataKey="missed" name="Missed" fill="#dc2626" radius={[4, 4, 0, 0]} maxBarSize={40} />
         </BarChart>
       </ResponsiveContainer>
     </div>

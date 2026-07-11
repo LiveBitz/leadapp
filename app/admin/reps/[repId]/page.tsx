@@ -45,10 +45,21 @@ interface Lead {
   name: string
   phone: string
   status: 'pending' | 'interested' | 'not_interested' | 'deal_closed'
-  direction: 'incoming' | 'outgoing'
+  direction: 'incoming' | 'outgoing' | 'missed'
   notes: string
   createdAt: string
   updatedAt: string
+}
+
+const DIRECTION_STYLES: Record<Lead['direction'], string> = {
+  incoming: 'bg-[#eff6ff] text-[#2563eb]',
+  outgoing: 'bg-[#f0fdf4] text-[#16a34a]',
+  missed:   'bg-[#fef2f2] text-[#dc2626]',
+}
+const DIRECTION_LABELS: Record<Lead['direction'], string> = {
+  incoming: 'Incoming',
+  outgoing: 'Outgoing',
+  missed:   'Missed',
 }
 
 type Filter = 'all' | 'pending' | 'interested' | 'not_interested' | 'deal_closed'
@@ -111,16 +122,23 @@ export default function RepLeadsPage() {
   // Leads depend on the date range — re-fetch whenever it changes
   useEffect(() => {
     if (!repId) return
-    setLoading(true)
-    setError(null)
     const params = new URLSearchParams()
     if (fromDate) params.set('from', fromDate)
     if (toDate) params.set('to', toDate)
-    fetch(`/api/admin/leads/${repId}?${params}`)
-      .then((r) => r.json())
-      .then((data) => { if (data.error) throw new Error(data.error); setLeads(data) })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
+
+    function load(showSpinner: boolean) {
+      if (showSpinner) { setLoading(true); setError(null) }
+      fetch(`/api/admin/leads/${repId}?${params}`)
+        .then((r) => r.json())
+        .then((data) => { if (data.error) throw new Error(data.error); setLeads(data) })
+        .catch((e) => { if (showSpinner) setError(e.message) })
+        .finally(() => { if (showSpinner) setLoading(false) })
+    }
+
+    load(true)
+    // Poll so a missed call captured on the rep's phone shows up here in near real time.
+    const interval = setInterval(() => load(false), 5000)
+    return () => clearInterval(interval)
   }, [repId, fromDate, toDate])
 
   function openEdit() {
@@ -317,9 +335,10 @@ export default function RepLeadsPage() {
 
         {/* Stats */}
         {!loading && !error && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 mb-5">
             {[
               { label: 'Total', count: leads.length, color: 'text-[#111111]' },
+              { label: 'Missed', count: leads.filter((l) => l.direction === 'missed').length, color: 'text-[#dc2626]' },
               { label: 'Interested', count: leads.filter((l) => l.status === 'interested').length, color: 'text-[#166534]' },
               { label: 'Not Interested', count: leads.filter((l) => l.status === 'not_interested').length, color: 'text-[#991b1b]' },
               { label: 'Deal Closed', count: leads.filter((l) => l.status === 'deal_closed').length, color: 'text-[#5b21b6]' },
@@ -419,6 +438,9 @@ export default function RepLeadsPage() {
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_STYLES[lead.status]}`}>
                       {STATUS_LABELS[lead.status]}
+                    </span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${DIRECTION_STYLES[lead.direction]}`}>
+                      {DIRECTION_LABELS[lead.direction]}
                     </span>
                     <p className="text-xs text-[#6b7280] whitespace-nowrap">Updated {formatDate(lead.updatedAt)}</p>
                   </div>

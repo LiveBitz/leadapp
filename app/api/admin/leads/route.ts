@@ -17,14 +17,16 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url)
-    const status = searchParams.get('status')   // pending | interested | not_interested
-    const date = searchParams.get('date')        // ISO date string — filter by that day only
+    const status = searchParams.get('status')       // pending | interested | not_interested
+    const direction = searchParams.get('direction') // incoming | outgoing | missed
+    const date = searchParams.get('date')            // ISO date string — filter by that day only
     const from = parseDateParam(searchParams.get('from'))
     const to = parseDateParam(searchParams.get('to'), true)
 
     const where: Record<string, unknown> = {}
 
     if (status) where.status = status
+    if (direction) where.direction = direction
 
     if (date) {
       const start = new Date(date)

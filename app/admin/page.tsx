@@ -13,6 +13,7 @@ interface DayStat {
   total: number
   incoming: number
   outgoing: number
+  missed: number
   interested: number
   not_interested: number
   pending: number
@@ -23,11 +24,13 @@ interface Summary {
   total: number
   incoming: number
   outgoing: number
+  missed: number
   interested: number
   not_interested: number
   pending: number
   deal_closed: number
   today: number
+  missed_today: number
 }
 
 interface Rep {
@@ -39,6 +42,7 @@ interface Rep {
   not_interested_count: number
   pending_count: number
   deal_closed_count: number
+  missed_count: number
 }
 
 export default function AdminOverviewPage() {
@@ -58,23 +62,29 @@ export default function AdminOverviewPage() {
     if (toDate) params.set('to', toDate)
     const qs = params.toString() ? `?${params}` : ''
 
-    setLoading(true)
-    setError(null)
+    function load(showSpinner: boolean) {
+      if (showSpinner) { setLoading(true); setError(null) }
 
-    fetch(`/api/admin/stats${qs}`)
-      .then((r) => r.json())
-      .then((data) => { if (!data.error) setStats(data) })
-      .catch(() => {})
+      fetch(`/api/admin/stats${qs}`)
+        .then((r) => r.json())
+        .then((data) => { if (!data.error) setStats(data) })
+        .catch(() => {})
 
-    fetch(`/api/admin/reps${qs}`)
-      .then(async (res) => {
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error ?? 'Failed to load reps')
-        return data
-      })
-      .then((data) => setReps(data))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
+      fetch(`/api/admin/reps${qs}`)
+        .then(async (res) => {
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error ?? 'Failed to load reps')
+          return data
+        })
+        .then((data) => setReps(data))
+        .catch((e) => { if (showSpinner) setError(e.message) })
+        .finally(() => { if (showSpinner) setLoading(false) })
+    }
+
+    load(true)
+    // Poll so newly captured calls (including missed ones) show up without a manual refresh.
+    const interval = setInterval(() => load(false), 5000)
+    return () => clearInterval(interval)
   }, [fromDate, toDate])
 
   const filtered = reps.filter((r) => {
@@ -228,6 +238,11 @@ export default function AdminOverviewPage() {
                       <p className="text-xs text-[#6b7280]">Total</p>
                     </div>
                     <div className="flex gap-2 flex-wrap">
+                      {rep.missed_count > 0 && (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#fef2f2] text-[#dc2626] whitespace-nowrap">
+                          {rep.missed_count} Missed
+                        </span>
+                      )}
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-[#fef9c3] text-[#854d0e] whitespace-nowrap">
                         {rep.pending_count} Pending
                       </span>

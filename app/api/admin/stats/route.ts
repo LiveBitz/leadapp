@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
         total:          dayLeads.length,
         incoming:       dayLeads.filter((l) => l.direction === 'incoming').length,
         outgoing:       dayLeads.filter((l) => l.direction === 'outgoing').length,
+        missed:         dayLeads.filter((l) => l.direction === 'missed').length,
         interested:     dayLeads.filter((l) => l.status === 'interested').length,
         not_interested: dayLeads.filter((l) => l.status === 'not_interested').length,
         pending:        dayLeads.filter((l) => l.status === 'pending').length,
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
     // When no filter, summary reflects all-time totals via COUNT queries.
     const summaryWhere = hasDateFilter ? { createdAt: { gte: start, lte: end } } : {}
 
-    const [statusGroups, directionGroups, todayCount] = await Promise.all([
+    const [statusGroups, directionGroups, todayCount, missedTodayCount] = await Promise.all([
       // COUNT per status — hits (status) or (repId, status) index
       prisma.lead.groupBy({
         by: ['status'],
@@ -108,6 +109,16 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
+      // Missed-today count — surfaced separately so it's visible at a glance
+      prisma.lead.count({
+        where: {
+          direction: 'missed',
+          createdAt: {
+            gte: today,
+            lte: new Date(today.getTime() + 86_400_000 - 1),
+          },
+        },
+      }),
     ])
 
     const countByStatus = Object.fromEntries(
@@ -122,11 +133,13 @@ export async function GET(req: NextRequest) {
       total,
       incoming:       countByDir['incoming']       ?? 0,
       outgoing:       countByDir['outgoing']        ?? 0,
+      missed:         countByDir['missed']          ?? 0,
       interested:     countByStatus['interested']   ?? 0,
       not_interested: countByStatus['not_interested'] ?? 0,
       pending:        countByStatus['pending']      ?? 0,
       deal_closed:    countByStatus['deal_closed']  ?? 0,
       today:          todayCount,
+      missed_today:   missedTodayCount,
     }
 
     return NextResponse.json({ daily, summary, isFiltered: hasDateFilter })

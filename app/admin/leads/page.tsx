@@ -16,7 +16,7 @@ interface Lead {
   name: string
   phone: string
   status: 'pending' | 'interested' | 'not_interested' | 'deal_closed'
-  direction: 'incoming' | 'outgoing'
+  direction: 'incoming' | 'outgoing' | 'missed'
   notes: string
   createdAt: string
   updatedAt: string
@@ -37,6 +37,7 @@ const STATUS_LABELS: Record<Lead['status'], string> = {
 }
 const PAGE_TITLES: Record<string, string> = {
   today:        "Today's Calls",
+  missed:       'Missed Calls',
   interested:   'Interested Leads',
   pending:      'Pending Leads',
   deal_closed:  'Deal Closed Leads',
@@ -71,6 +72,29 @@ function IconArrowUp() {
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
     </svg>
   )
+}
+function IconMissed() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  )
+}
+
+const DIRECTION_STYLES: Record<Lead['direction'], string> = {
+  incoming: 'bg-[#eff6ff] text-[#2563eb]',
+  outgoing: 'bg-[#f0fdf4] text-[#16a34a]',
+  missed:   'bg-[#fef2f2] text-[#dc2626]',
+}
+const DIRECTION_LABELS: Record<Lead['direction'], string> = {
+  incoming: 'Incoming',
+  outgoing: 'Outgoing',
+  missed:   'Missed',
+}
+function DirectionIcon({ direction }: { direction: Lead['direction'] }) {
+  if (direction === 'incoming') return <IconArrowDown />
+  if (direction === 'outgoing') return <IconArrowUp />
+  return <IconMissed />
 }
 function IconCalendar() {
   return (
@@ -122,21 +146,31 @@ function LeadsContent() {
   const [toDate,   setToDate]   = useState('')
 
   useEffect(() => {
-    setLoading(true)
-    setError(null)
     const params = new URLSearchParams()
     if (filter === 'today') {
       params.set('date', new Date().toISOString().slice(0, 10))
+    } else if (filter === 'missed') {
+      params.set('direction', 'missed')
     } else if (['interested', 'pending', 'not_interested', 'deal_closed'].includes(filter)) {
       params.set('status', filter)
     }
     if (fromDate) params.set('from', fromDate)
     if (toDate)   params.set('to',   toDate)
-    fetch(`/api/admin/leads?${params}`)
-      .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d })
-      .then(setLeads)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
+
+    function load(showSpinner: boolean) {
+      if (showSpinner) setLoading(true)
+      setError(null)
+      fetch(`/api/admin/leads?${params}`)
+        .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d })
+        .then(setLeads)
+        .catch((e) => { if (showSpinner) setError(e.message) })
+        .finally(() => { if (showSpinner) setLoading(false) })
+    }
+
+    load(true)
+    // Poll for new/updated leads so missed calls show up here in near real time.
+    const interval = setInterval(() => load(false), 5000)
+    return () => clearInterval(interval)
   }, [filter, fromDate, toDate])
 
   const filtered = leads.filter((l) => {
@@ -273,13 +307,9 @@ function LeadsContent() {
                     </span>
 
                     {/* Direction */}
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      lead.direction === 'incoming'
-                        ? 'bg-[#eff6ff] text-[#2563eb]'
-                        : 'bg-[#f0fdf4] text-[#16a34a]'
-                    }`}>
-                      {lead.direction === 'incoming' ? <IconArrowDown /> : <IconArrowUp />}
-                      {lead.direction === 'incoming' ? 'Incoming' : 'Outgoing'}
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${DIRECTION_STYLES[lead.direction]}`}>
+                      <DirectionIcon direction={lead.direction} />
+                      {DIRECTION_LABELS[lead.direction]}
                     </span>
 
                     {/* Date */}

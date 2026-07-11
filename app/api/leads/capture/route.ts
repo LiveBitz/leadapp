@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       phone?: string
       calledAt?: number
       duration?: number
-      direction?: 'incoming' | 'outgoing'
+      direction?: 'incoming' | 'outgoing' | 'missed'
     }
 
     const rawPhone = phone?.trim()
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         repId,
         status:         'pending',
         notes:          '',
-        direction:      direction === 'incoming' ? 'incoming' : 'outgoing',
+        direction:      direction === 'incoming' || direction === 'missed' ? direction : 'outgoing',
       },
     })
 
