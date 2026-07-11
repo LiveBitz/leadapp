@@ -41,6 +41,7 @@ model Lead {
   @@index([status])
   @@index([repId, status])
   @@index([repId, createdAt])
+  @@index([repId, updatedAt])
   @@index([repId, phoneNormalized])
   @@map("leads")
 }
