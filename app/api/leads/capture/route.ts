@@ -31,12 +31,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 })
     }
 
+    const normalizedDirection: 'incoming' | 'outgoing' | 'missed' =
+      direction === 'incoming' || direction === 'missed' ? direction : 'outgoing'
+
     // Single indexed lookup — hits (repId, phoneNormalized) compound index
     const duplicate = await prisma.lead.findFirst({
       where: { repId, phoneNormalized: normalized },
     })
 
     if (duplicate) {
+      // A number that was first captured as a missed call and later actually
+      // connects (rep calls back, or the contact calls again and it's answered)
+      // should stop reading as "Missed" — it no longer accurately describes the
+      // relationship. A real connection always wins over a missed one; we never
+      // downgrade an already-connected lead back to "missed" from a later
+      // unanswered call, since that would erase the fact a conversation happened.
+      if (duplicate.direction === 'missed' && normalizedDirection !== 'missed') {
+        const updated = await prisma.lead.update({
+          where: { id: duplicate.id },
+          data: { direction: normalizedDirection },
+        })
+        return NextResponse.json({ lead: updated, created: false })
+      }
       return NextResponse.json({ lead: duplicate, created: false })
     }
 
@@ -48,7 +64,7 @@ export async function POST(req: NextRequest) {
         repId,
         status:         'pending',
         notes:          '',
-        direction:      direction === 'incoming' || direction === 'missed' ? direction : 'outgoing',
+        direction:      normalizedDirection,
       },
     })
 
