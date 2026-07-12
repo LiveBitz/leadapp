@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import DateRangePicker from '@/components/DateRangePicker'
+import { useVisiblePolling } from '@/hooks/useVisiblePolling'
 
 interface Rep {
   id: string
@@ -134,18 +135,30 @@ function downloadCSV(leads: Lead[], filename: string) {
   URL.revokeObjectURL(url)
 }
 
+interface LeadsPage {
+  leads: Lead[]
+  nextCursor: string | null
+  total?: number
+}
+
 function LeadsContent() {
   const searchParams  = useSearchParams()
   const filter        = searchParams.get('filter') ?? 'all'
 
-  const [leads,    setLeads]    = useState<Lead[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState<string | null>(null)
-  const [search,   setSearch]   = useState('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate,   setToDate]   = useState('')
+  const [leads,       setLeads]       = useState<Lead[]>([])
+  const [total,        setTotal]      = useState(0)
+  const [loading,      setLoading]    = useState(true)
+  const [loadingMore,  setLoadingMore] = useState(false)
+  const [hasMore,      setHasMore]    = useState(false)
+  const [error,        setError]      = useState<string | null>(null)
+  const [search,       setSearch]     = useState('')
+  const [fromDate,     setFromDate]   = useState('')
+  const [toDate,       setToDate]     = useState('')
+  const [exporting,    setExporting]  = useState(false)
 
-  useEffect(() => {
+  const cursorRef = useRef<string | null>(null)
+
+  function buildParams(cursor: string | null) {
     const params = new URLSearchParams()
     if (filter === 'today') {
       params.set('date', new Date().toISOString().slice(0, 10))
@@ -156,28 +169,70 @@ function LeadsContent() {
     }
     if (fromDate) params.set('from', fromDate)
     if (toDate)   params.set('to',   toDate)
+    if (search.trim()) params.set('q', search.trim())
+    if (cursor) params.set('cursor', cursor)
+    return params
+  }
 
-    function load(showSpinner: boolean) {
-      if (showSpinner) setLoading(true)
-      setError(null)
-      fetch(`/api/admin/leads?${params}`)
-        .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d })
-        .then(setLeads)
-        .catch((e) => { if (showSpinner) setError(e.message) })
-        .finally(() => { if (showSpinner) setLoading(false) })
+  const load = useCallback((showSpinner: boolean) => {
+    cursorRef.current = null
+    if (showSpinner) { setLoading(true); setError(null) }
+    fetch(`/api/admin/leads?${buildParams(null)}`)
+      .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d as LeadsPage })
+      .then((data) => {
+        setLeads(data.leads)
+        cursorRef.current = data.nextCursor
+        setHasMore(data.nextCursor !== null)
+        if (data.total !== undefined) setTotal(data.total)
+      })
+      .catch((e) => { if (showSpinner) setError(e.message) })
+      .finally(() => { if (showSpinner) setLoading(false) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, fromDate, toDate, search])
+
+  const loadMore = useCallback(() => {
+    if (loadingMore || !cursorRef.current) return
+    setLoadingMore(true)
+    fetch(`/api/admin/leads?${buildParams(cursorRef.current)}`)
+      .then((r) => r.json())
+      .then((data: LeadsPage) => {
+        setLeads((prev) => [...prev, ...data.leads])
+        cursorRef.current = data.nextCursor
+        setHasMore(data.nextCursor !== null)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingMore, filter, fromDate, toDate, search])
+
+  // Debounce so rapid search keystrokes don't each fire a request.
+  useEffect(() => {
+    const handle = setTimeout(() => load(true), 300)
+    return () => clearTimeout(handle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, fromDate, toDate, search])
+
+  // Poll for new/updated leads so missed calls show up here in near real time —
+  // but only while this tab is visible, so a forgotten background tab doesn't
+  // keep the database awake for nothing.
+  useVisiblePolling(useCallback(() => load(false), [load]), 20000)
+
+  async function handleExportCSV() {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const params = buildParams(null)
+      params.set('all', 'true')
+      const res = await fetch(`/api/admin/leads?${params}`)
+      const data: LeadsPage = await res.json()
+      const date = new Date().toISOString().slice(0, 10)
+      downloadCSV(data.leads, `leads_${filter}_${date}.csv`)
+    } catch {
+      // Best-effort — the button just stays clickable to retry.
+    } finally {
+      setExporting(false)
     }
-
-    load(true)
-    // Poll for new/updated leads so missed calls show up here in near real time.
-    const interval = setInterval(() => load(false), 5000)
-    return () => clearInterval(interval)
-  }, [filter, fromDate, toDate])
-
-  const filtered = leads.filter((l) => {
-    const q = search.trim().toLowerCase()
-    if (!q) return true
-    return l.name.toLowerCase().includes(q) || l.phone.includes(q) || (l.rep?.fullName.toLowerCase().includes(q) ?? false)
-  })
+  }
 
   const fmt = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -201,22 +256,20 @@ function LeadsContent() {
             {!loading && (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-sm font-medium text-[#6b7280] bg-white border border-[#e5e5e5] px-3 py-1 rounded-full">
-                  {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
+                  {total} lead{total !== 1 ? 's' : ''}
                 </span>
-                {filtered.length > 0 && (
+                {total > 0 && (
                   <button
-                    onClick={() => {
-                      const date = new Date().toISOString().slice(0, 10)
-                      downloadCSV(filtered, `leads_${filter}_${date}.csv`)
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#111111] text-white text-xs font-medium rounded-xl hover:bg-[#333] transition-colors shadow-sm"
+                    onClick={handleExportCSV}
+                    disabled={exporting}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#111111] text-white text-xs font-medium rounded-xl hover:bg-[#333] transition-colors shadow-sm disabled:opacity-50"
                     title="Download CSV"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 10l5 5 5-5M12 15V3" />
                     </svg>
-                    <span className="hidden sm:inline">Download CSV</span>
-                    <span className="sm:hidden">CSV</span>
+                    <span className="hidden sm:inline">{exporting ? 'Exporting…' : 'Download CSV'}</span>
+                    <span className="sm:hidden">{exporting ? '…' : 'CSV'}</span>
                   </button>
                 )}
               </div>
@@ -267,7 +320,7 @@ function LeadsContent() {
         )}
 
         {/* Empty */}
-        {!loading && !error && filtered.length === 0 && (
+        {!loading && !error && leads.length === 0 && (
           <div className="bg-white border border-[#e5e5e5] rounded-2xl p-16 text-center shadow-sm">
             <p className="text-[#6b7280]">
               {search.trim() ? `No leads match "${search}".` : 'No leads found.'}
@@ -276,9 +329,9 @@ function LeadsContent() {
         )}
 
         {/* List */}
-        {!loading && !error && filtered.length > 0 && (
+        {!loading && !error && leads.length > 0 && (
           <div className="flex flex-col gap-3">
-            {filtered.map((lead) => (
+            {leads.map((lead) => (
               <div key={lead.id} className="bg-white border border-[#e5e5e5] rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-[#d1d5db] transition-all">
 
                 {/* Top row */}
@@ -328,6 +381,16 @@ function LeadsContent() {
                 )}
               </div>
             ))}
+
+            {hasMore && (
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="mt-2 px-5 py-3 rounded-xl border border-[#e5e5e5] bg-white text-[#111111] text-sm font-medium hover:bg-[#f5f5f5] transition-colors disabled:opacity-50 text-center shadow-sm"
+              >
+                {loadingMore ? 'Loading…' : 'Load More'}
+              </button>
+            )}
           </div>
         )}
       </div>

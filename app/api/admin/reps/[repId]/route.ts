@@ -26,7 +26,24 @@ export async function GET(
       return NextResponse.json({ error: 'Rep not found' }, { status: 404 })
     }
 
-    return NextResponse.json(rep)
+    // Aggregate via groupBy instead of fetching every lead row — cheap even for
+    // a rep with thousands of leads.
+    const [statusGroups, missedCount] = await Promise.all([
+      prisma.lead.groupBy({ by: ['status'], where: { repId }, _count: { _all: true } }),
+      prisma.lead.count({ where: { repId, direction: 'missed' } }),
+    ])
+    const countByStatus = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]))
+    const totalLeads = statusGroups.reduce((s, g) => s + g._count._all, 0)
+
+    return NextResponse.json({
+      ...rep,
+      totalLeads,
+      interestedCount: countByStatus['interested'] ?? 0,
+      notInterestedCount: countByStatus['not_interested'] ?? 0,
+      pendingCount: countByStatus['pending'] ?? 0,
+      dealClosedCount: countByStatus['deal_closed'] ?? 0,
+      missedCount,
+    })
   } catch (error) {
     console.error('[GET /api/admin/reps/[repId]]', error)
     return NextResponse.json({ error: 'Failed to fetch rep' }, { status: 500 })

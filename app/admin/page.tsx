@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import DateRangePicker from '@/components/DateRangePicker'
+import { useVisiblePolling } from '@/hooks/useVisiblePolling'
 
 const CallsChart = dynamic(() => import('@/components/CallsChart'), { ssr: false })
 
@@ -56,36 +57,38 @@ export default function AdminOverviewPage() {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
 
-  useEffect(() => {
+  const load = useCallback((showSpinner: boolean) => {
     const params = new URLSearchParams()
     if (fromDate) params.set('from', fromDate)
     if (toDate) params.set('to', toDate)
     const qs = params.toString() ? `?${params}` : ''
 
-    function load(showSpinner: boolean) {
-      if (showSpinner) { setLoading(true); setError(null) }
+    if (showSpinner) { setLoading(true); setError(null) }
 
-      fetch(`/api/admin/stats${qs}`)
-        .then((r) => r.json())
-        .then((data) => { if (!data.error) setStats(data) })
-        .catch(() => {})
+    fetch(`/api/admin/stats${qs}`)
+      .then((r) => r.json())
+      .then((data) => { if (!data.error) setStats(data) })
+      .catch(() => {})
 
-      fetch(`/api/admin/reps${qs}`)
-        .then(async (res) => {
-          const data = await res.json()
-          if (!res.ok) throw new Error(data.error ?? 'Failed to load reps')
-          return data
-        })
-        .then((data) => setReps(data))
-        .catch((e) => { if (showSpinner) setError(e.message) })
-        .finally(() => { if (showSpinner) setLoading(false) })
-    }
-
-    load(true)
-    // Poll so newly captured calls (including missed ones) show up without a manual refresh.
-    const interval = setInterval(() => load(false), 5000)
-    return () => clearInterval(interval)
+    fetch(`/api/admin/reps${qs}`)
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Failed to load reps')
+        return data
+      })
+      .then((data) => setReps(data))
+      .catch((e) => { if (showSpinner) setError(e.message) })
+      .finally(() => { if (showSpinner) setLoading(false) })
   }, [fromDate, toDate])
+
+  useEffect(() => {
+    load(true)
+  }, [load])
+
+  // Poll so newly captured calls (including missed ones) show up without a manual
+  // refresh — but only while this tab is actually visible, so a forgotten background
+  // tab doesn't keep the database awake for nothing.
+  useVisiblePolling(useCallback(() => load(false), [load]), 20000)
 
   const filtered = reps.filter((r) => {
     const q = search.trim().toLowerCase()

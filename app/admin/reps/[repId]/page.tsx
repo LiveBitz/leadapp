@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import DateRangePicker from '@/components/DateRangePicker'
+import { useVisiblePolling } from '@/hooks/useVisiblePolling'
 
 function escapeCell(v: string | null | undefined) {
   const s = String(v ?? '')
@@ -38,6 +39,12 @@ interface Rep {
   fullName: string
   phone: string | null
   createdAt: string
+  totalLeads: number
+  interestedCount: number
+  notInterestedCount: number
+  pendingCount: number
+  dealClosedCount: number
+  missedCount: number
 }
 
 interface Lead {
@@ -86,6 +93,11 @@ const STATUS_LABELS: Record<Lead['status'], string> = {
   deal_closed: 'Deal Closed 🎉',
 }
 
+interface LeadsPage {
+  leads: Lead[]
+  nextCursor: string | null
+}
+
 export default function RepLeadsPage() {
   const { repId } = useParams<{ repId: string }>()
   const router = useRouter()
@@ -93,11 +105,16 @@ export default function RepLeadsPage() {
   const [rep, setRep] = useState<Rep | null>(null)
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [exporting, setExporting] = useState(false)
+
+  const cursorRef = useRef<string | null>(null)
 
   // edit state
   const [editing, setEditing] = useState(false)
@@ -110,36 +127,89 @@ export default function RepLeadsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  // Rep profile is static — fetch once
-  useEffect(() => {
-    if (!repId) return
-    fetch(`/api/admin/reps/${repId}`)
-      .then((r) => r.json())
-      .then((data) => { if (data.error) throw new Error(data.error); setRep(data) })
-      .catch((e) => setError(e.message))
-  }, [repId])
-
-  // Leads depend on the date range — re-fetch whenever it changes
-  useEffect(() => {
-    if (!repId) return
+  function buildParams(cursor: string | null) {
     const params = new URLSearchParams()
     if (fromDate) params.set('from', fromDate)
     if (toDate) params.set('to', toDate)
+    if (filter !== 'all') params.set('status', filter)
+    if (search.trim()) params.set('q', search.trim())
+    if (cursor) params.set('cursor', cursor)
+    return params
+  }
 
-    function load(showSpinner: boolean) {
-      if (showSpinner) { setLoading(true); setError(null) }
-      fetch(`/api/admin/leads/${repId}?${params}`)
-        .then((r) => r.json())
-        .then((data) => { if (data.error) throw new Error(data.error); setLeads(data) })
-        .catch((e) => { if (showSpinner) setError(e.message) })
-        .finally(() => { if (showSpinner) setLoading(false) })
+  // Rep profile (with aggregate counts) — fetch once, and again after edits/polling.
+  const loadRep = useCallback((showSpinner: boolean) => {
+    if (!repId) return
+    if (showSpinner) setError(null)
+    fetch(`/api/admin/reps/${repId}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.error) throw new Error(data.error); setRep(data) })
+      .catch((e) => { if (showSpinner) setError(e.message) })
+  }, [repId])
+
+  // Leads page 1 — re-fetch whenever a filter changes.
+  const loadLeads = useCallback((showSpinner: boolean) => {
+    if (!repId) return
+    cursorRef.current = null
+    if (showSpinner) { setLoading(true); setError(null) }
+    fetch(`/api/admin/leads/${repId}?${buildParams(null)}`)
+      .then((r) => r.json())
+      .then((data: LeadsPage) => {
+        setLeads(data.leads)
+        cursorRef.current = data.nextCursor
+        setHasMore(data.nextCursor !== null)
+      })
+      .catch((e) => { if (showSpinner) setError(e.message) })
+      .finally(() => { if (showSpinner) setLoading(false) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repId, fromDate, toDate, filter, search])
+
+  const loadMore = useCallback(() => {
+    if (!repId || loadingMore || !cursorRef.current) return
+    setLoadingMore(true)
+    fetch(`/api/admin/leads/${repId}?${buildParams(cursorRef.current)}`)
+      .then((r) => r.json())
+      .then((data: LeadsPage) => {
+        setLeads((prev) => [...prev, ...data.leads])
+        cursorRef.current = data.nextCursor
+        setHasMore(data.nextCursor !== null)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repId, loadingMore, fromDate, toDate, filter, search])
+
+  useEffect(() => {
+    loadRep(true)
+  }, [loadRep])
+
+  // Debounce so rapid search keystrokes don't each fire a request.
+  useEffect(() => {
+    const handle = setTimeout(() => loadLeads(true), 300)
+    return () => clearTimeout(handle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repId, fromDate, toDate, filter, search])
+
+  // Poll so a missed call captured on the rep's phone shows up here in near real
+  // time — but only while this tab is visible, so a forgotten background tab
+  // doesn't keep the database awake for nothing.
+  useVisiblePolling(useCallback(() => { loadRep(false); loadLeads(false) }, [loadRep, loadLeads]), 20000)
+
+  async function handleExportCSV() {
+    if (!rep || exporting) return
+    setExporting(true)
+    try {
+      const params = buildParams(null)
+      params.set('all', 'true')
+      const res = await fetch(`/api/admin/leads/${repId}?${params}`)
+      const data: LeadsPage = await res.json()
+      downloadCSV(data.leads, rep)
+    } catch {
+      // Best-effort — the button just stays clickable to retry.
+    } finally {
+      setExporting(false)
     }
-
-    load(true)
-    // Poll so a missed call captured on the rep's phone shows up here in near real time.
-    const interval = setInterval(() => load(false), 5000)
-    return () => clearInterval(interval)
-  }, [repId, fromDate, toDate])
+  }
 
   function openEdit() {
     setEditName(rep?.fullName ?? '')
@@ -170,7 +240,9 @@ export default function RepLeadsPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to save')
-      setRep(data)
+      // PATCH only returns the updated profile fields, not the aggregate counts —
+      // merge rather than replace so totalLeads etc. aren't wiped out.
+      setRep((prev) => (prev ? { ...prev, ...data } : prev))
       setEditing(false)
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Failed to save')
@@ -182,7 +254,7 @@ export default function RepLeadsPage() {
   async function handleDeleteRep() {
     if (!rep) return
     const confirmed = window.confirm(
-      `Remove "${rep.fullName}"?\n\nThis will permanently delete this rep account and all ${leads.length} of their captured leads. This cannot be undone.`,
+      `Remove "${rep.fullName}"?\n\nThis will permanently delete this rep account and all ${rep.totalLeads} of their captured leads. This cannot be undone.`,
     )
     if (!confirmed) return
 
@@ -199,12 +271,7 @@ export default function RepLeadsPage() {
     }
   }
 
-  const filtered = leads.filter((l) => {
-    const matchesFilter = filter === 'all' || l.status === filter
-    const q = search.trim().toLowerCase()
-    const matchesSearch = !q || l.name.toLowerCase().includes(q) || l.phone.includes(q)
-    return matchesFilter && matchesSearch
-  })
+  const hasActiveFilters = filter !== 'all' || search.trim() !== '' || fromDate !== '' || toDate !== ''
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', {
@@ -239,16 +306,17 @@ export default function RepLeadsPage() {
 
             {!editing && (
               <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                {leads.length > 0 && (
+                {rep.totalLeads > 0 && (
                   <button
-                    onClick={() => rep && downloadCSV(filtered.length > 0 ? filtered : leads, rep)}
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#111111] text-white text-sm font-medium hover:bg-[#333] transition-colors"
+                    onClick={handleExportCSV}
+                    disabled={exporting}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#111111] text-white text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-50"
                     title="Download CSV"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 10l5 5 5-5M12 15V3" />
                     </svg>
-                    <span>CSV</span>
+                    <span>{exporting ? 'Exporting…' : 'CSV'}</span>
                   </button>
                 )}
                 <button
@@ -333,15 +401,15 @@ export default function RepLeadsPage() {
           />
         </div>
 
-        {/* Stats */}
-        {!loading && !error && (
+        {/* Stats — from the rep's aggregate counts, not the loaded page */}
+        {rep && (
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 mb-5">
             {[
-              { label: 'Total', count: leads.length, color: 'text-[#111111]' },
-              { label: 'Missed', count: leads.filter((l) => l.direction === 'missed').length, color: 'text-[#dc2626]' },
-              { label: 'Interested', count: leads.filter((l) => l.status === 'interested').length, color: 'text-[#166534]' },
-              { label: 'Not Interested', count: leads.filter((l) => l.status === 'not_interested').length, color: 'text-[#991b1b]' },
-              { label: 'Deal Closed', count: leads.filter((l) => l.status === 'deal_closed').length, color: 'text-[#5b21b6]' },
+              { label: 'Total', count: rep.totalLeads, color: 'text-[#111111]' },
+              { label: 'Missed', count: rep.missedCount, color: 'text-[#dc2626]' },
+              { label: 'Interested', count: rep.interestedCount, color: 'text-[#166534]' },
+              { label: 'Not Interested', count: rep.notInterestedCount, color: 'text-[#991b1b]' },
+              { label: 'Deal Closed', count: rep.dealClosedCount, color: 'text-[#5b21b6]' },
             ].map((s) => (
               <div key={s.label} className="bg-[#f9fafb] border border-[#e5e5e5] rounded-xl sm:rounded-2xl p-3 sm:p-4 text-center">
                 <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.count}</p>
@@ -352,53 +420,49 @@ export default function RepLeadsPage() {
         )}
 
         {/* Search */}
-        {!loading && !error && (
-          <div className="relative mb-3">
-            <svg
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
+        <div className="relative mb-3">
+          <svg
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or phone number…"
+            className="w-full border border-[#e5e5e5] rounded-xl pl-10 pr-8 py-2.5 text-sm text-[#111111] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] text-lg leading-none"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name or phone number…"
-              className="w-full border border-[#e5e5e5] rounded-xl pl-10 pr-8 py-2.5 text-sm text-[#111111] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] text-lg leading-none"
-              >
-                ×
-              </button>
-            )}
-          </div>
-        )}
+              ×
+            </button>
+          )}
+        </div>
 
         {/* Filter tabs */}
-        {!loading && !error && (
-          <div className="flex gap-2 mb-5 flex-wrap">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors ${
-                  filter === f.key
-                    ? 'bg-[#2563eb] text-white'
-                    : 'bg-[#f5f5f5] text-[#6b7280] hover:bg-[#e5e5e5]'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex gap-2 mb-5 flex-wrap">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+                filter === f.key
+                  ? 'bg-[#2563eb] text-white'
+                  : 'bg-[#f5f5f5] text-[#6b7280] hover:bg-[#e5e5e5]'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
 
         {loading && (
           <div className="flex justify-center py-24">
@@ -412,17 +476,17 @@ export default function RepLeadsPage() {
           </div>
         )}
 
-        {!loading && !error && filtered.length === 0 && (
+        {!loading && !error && leads.length === 0 && (
           <div className="bg-[#f5f5f5] rounded-2xl p-12 text-center">
             <p className="text-[#6b7280]">
-              {search.trim() ? `No leads match "${search.trim()}".` : 'No leads match this filter.'}
+              {hasActiveFilters ? 'No leads match this filter.' : 'No leads captured yet.'}
             </p>
           </div>
         )}
 
-        {!loading && !error && filtered.length > 0 && (
+        {!loading && !error && leads.length > 0 && (
           <div className="flex flex-col gap-3">
-            {filtered.map((lead) => (
+            {leads.map((lead) => (
               <div
                 key={lead.id}
                 className="bg-white border border-[#e5e5e5] rounded-2xl p-4 sm:p-5 hover:border-[#d1d5db] transition-colors"
@@ -447,6 +511,16 @@ export default function RepLeadsPage() {
                 </div>
               </div>
             ))}
+
+            {hasMore && (
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="mt-2 px-5 py-3 rounded-xl border border-[#e5e5e5] text-[#111111] text-sm font-medium hover:bg-[#f5f5f5] transition-colors disabled:opacity-50 text-center"
+              >
+                {loadingMore ? 'Loading…' : 'Load More'}
+              </button>
+            )}
           </div>
         )}
       </div>

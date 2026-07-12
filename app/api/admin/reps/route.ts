@@ -25,28 +25,57 @@ export async function GET(req: NextRequest) {
       ...(to ? { lte: to } : {}),
     }
 
-    const reps = await prisma.profile.findMany({
-      where: { role: 'rep' },
-      orderBy: { fullName: 'asc' },
-      include: {
-        capturedLeads: {
-          where: Object.keys(createdAt).length ? { createdAt } : undefined,
-          select: { status: true, direction: true },
-        },
-      },
-    })
+    const leadWhere = Object.keys(createdAt).length ? { createdAt } : {}
 
-    const result = reps.map((rep: typeof reps[number]) => ({
-      id: rep.id,
-      full_name: rep.fullName,
-      phone: rep.phone,
-      total_leads: rep.capturedLeads.length,
-      interested_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'interested').length,
-      not_interested_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'not_interested').length,
-      pending_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'pending').length,
-      deal_closed_count: rep.capturedLeads.filter((l: { status: string }) => l.status === 'deal_closed').length,
-      missed_count: rep.capturedLeads.filter((l: { direction: string }) => l.direction === 'missed').length,
-    }))
+    // Aggregate counts via groupBy instead of pulling every lead row per rep —
+    // this used to fetch every lead's {status, direction} on every poll just to
+    // count them in JS, which scales with total lead count across all reps.
+    const [reps, statusGroups, directionGroups] = await Promise.all([
+      prisma.profile.findMany({
+        where: { role: 'rep' },
+        orderBy: { fullName: 'asc' },
+        select: { id: true, fullName: true, phone: true },
+      }),
+      prisma.lead.groupBy({
+        by: ['repId', 'status'],
+        where: { repId: { not: null }, ...leadWhere },
+        _count: { _all: true },
+      }),
+      prisma.lead.groupBy({
+        by: ['repId', 'direction'],
+        where: { repId: { not: null }, direction: 'missed', ...leadWhere },
+        _count: { _all: true },
+      }),
+    ])
+
+    const statusCountsByRep = new Map<string, Record<string, number>>()
+    for (const g of statusGroups) {
+      if (!g.repId) continue
+      const counts = statusCountsByRep.get(g.repId) ?? {}
+      counts[g.status] = g._count._all
+      statusCountsByRep.set(g.repId, counts)
+    }
+    const missedCountByRep = new Map<string, number>()
+    for (const g of directionGroups) {
+      if (!g.repId) continue
+      missedCountByRep.set(g.repId, g._count._all)
+    }
+
+    const result = reps.map((rep: typeof reps[number]) => {
+      const counts = statusCountsByRep.get(rep.id) ?? {}
+      const total = Object.values(counts).reduce((s, c) => s + c, 0)
+      return {
+        id: rep.id,
+        full_name: rep.fullName,
+        phone: rep.phone,
+        total_leads: total,
+        interested_count: counts['interested'] ?? 0,
+        not_interested_count: counts['not_interested'] ?? 0,
+        pending_count: counts['pending'] ?? 0,
+        deal_closed_count: counts['deal_closed'] ?? 0,
+        missed_count: missedCountByRep.get(rep.id) ?? 0,
+      }
+    })
 
     return NextResponse.json(result)
   } catch (error) {

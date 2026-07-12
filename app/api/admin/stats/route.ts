@@ -58,27 +58,34 @@ export async function GET(req: NextRequest) {
       cursor.setUTCDate(cursor.getUTCDate() + 1)
     }
 
-    // ── Fetch only the chart window leads (uses createdAt index) ────────────
-    const windowLeads = await prisma.lead.findMany({
-      where: { createdAt: { gte: start, lte: end } },
-      select: { createdAt: true, direction: true, status: true },
-    })
+    // ── Chart window counts — grouped by day/direction/status directly in
+    // Postgres instead of pulling every matching lead row into the app and
+    // counting in JS. Result set is at most (days × directions × statuses)
+    // rows, regardless of how many leads actually fall in the window.
+    const buckets = await prisma.$queryRaw<
+      { day: Date; direction: string; status: string; count: number }[]
+    >`
+      SELECT date_trunc('day', created_at) AS day, direction, status, COUNT(*)::int AS count
+      FROM leads
+      WHERE created_at >= ${start} AND created_at <= ${end}
+      GROUP BY day, direction, status
+    `
 
     const daily = days.map(({ date, label }) => {
-      const dayStart = new Date(date)
-      const dayEnd = new Date(dayStart)
-      dayEnd.setUTCDate(dayEnd.getUTCDate() + 1)
-      const dayLeads = windowLeads.filter((l) => l.createdAt >= dayStart && l.createdAt < dayEnd)
+      const dayKey = date.slice(0, 10)
+      const dayBuckets = buckets.filter((b) => b.day.toISOString().slice(0, 10) === dayKey)
+      const sumWhere = (pred: (b: typeof dayBuckets[number]) => boolean) =>
+        dayBuckets.filter(pred).reduce((s, b) => s + b.count, 0)
       return {
         label,
-        total:          dayLeads.length,
-        incoming:       dayLeads.filter((l) => l.direction === 'incoming').length,
-        outgoing:       dayLeads.filter((l) => l.direction === 'outgoing').length,
-        missed:         dayLeads.filter((l) => l.direction === 'missed').length,
-        interested:     dayLeads.filter((l) => l.status === 'interested').length,
-        not_interested: dayLeads.filter((l) => l.status === 'not_interested').length,
-        pending:        dayLeads.filter((l) => l.status === 'pending').length,
-        deal_closed:    dayLeads.filter((l) => l.status === 'deal_closed').length,
+        total:          dayBuckets.reduce((s, b) => s + b.count, 0),
+        incoming:       sumWhere((b) => b.direction === 'incoming'),
+        outgoing:       sumWhere((b) => b.direction === 'outgoing'),
+        missed:         sumWhere((b) => b.direction === 'missed'),
+        interested:     sumWhere((b) => b.status === 'interested'),
+        not_interested: sumWhere((b) => b.status === 'not_interested'),
+        pending:        sumWhere((b) => b.status === 'pending'),
+        deal_closed:    sumWhere((b) => b.status === 'deal_closed'),
       }
     })
 
