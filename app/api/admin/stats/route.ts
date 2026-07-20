@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prismaD1 as prisma } from '@/lib/prisma-d1'
 import { getAdminSession } from '@/lib/session'
 
 function parseDateParam(value: string | null, endOfDay = false) {
@@ -59,21 +59,24 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Chart window counts — grouped by day/direction/status directly in
-    // Postgres instead of pulling every matching lead row into the app and
+    // SQLite instead of pulling every matching lead row into the app and
     // counting in JS. Result set is at most (days × directions × statuses)
     // rows, regardless of how many leads actually fall in the window.
+    // D1/SQLite note: dates are stored as ISO-8601 text, and date() returns a
+    // plain "YYYY-MM-DD" string (not a Date object like Postgres' date_trunc),
+    // so `day` is compared directly as a string below.
     const buckets = await prisma.$queryRaw<
-      { day: Date; direction: string; status: string; count: number }[]
+      { day: string; direction: string; status: string; count: number }[]
     >`
-      SELECT date_trunc('day', created_at) AS day, direction, status, COUNT(*)::int AS count
+      SELECT date(created_at) AS day, direction, status, COUNT(*) AS count
       FROM leads
-      WHERE created_at >= ${start} AND created_at <= ${end}
+      WHERE created_at >= ${start.toISOString()} AND created_at <= ${end.toISOString()}
       GROUP BY day, direction, status
     `
 
     const daily = days.map(({ date, label }) => {
       const dayKey = date.slice(0, 10)
-      const dayBuckets = buckets.filter((b) => b.day.toISOString().slice(0, 10) === dayKey)
+      const dayBuckets = buckets.filter((b) => b.day === dayKey)
       const sumWhere = (pred: (b: typeof dayBuckets[number]) => boolean) =>
         dayBuckets.filter(pred).reduce((s, b) => s + b.count, 0)
       return {

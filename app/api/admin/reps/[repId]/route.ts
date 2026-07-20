@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
+import { prismaD1 as prisma } from '@/lib/prisma-d1'
 import { getAdminSession } from '@/lib/session'
 
 function isNotFound(e: unknown): boolean {

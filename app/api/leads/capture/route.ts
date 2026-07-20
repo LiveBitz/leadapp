@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prismaD1 as prisma } from '@/lib/prisma-d1'
 import { getRepIdFromRequest } from '@/lib/repAuth'
 
 // Normalize to last 10 digits — tolerates country code differences (+1, 0, etc.)

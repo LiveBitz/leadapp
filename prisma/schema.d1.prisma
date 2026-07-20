@@ -1,0 +1,71 @@
+// D1 (SQLite) schema — parallel to schema.prisma (Postgres/Neon).
+// Generates to a separate client output so it never collides with the
+// Neon-backed client. The live app keeps using schema.prisma /
+// @prisma/client until this is fully verified and cut over.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-d1"
+}
+
+// Prisma 7 config: no `url` here — the query-time connection to D1 happens
+// via the PrismaD1 adapter (CLOUDFLARE_D1_TOKEN / ACCOUNT_ID / DATABASE_ID),
+// instantiated in code, the same pattern already used for Neon in lib/prisma.ts.
+datasource db {
+  provider = "sqlite"
+}
+
+model Profile {
+  id           String   @id @default(uuid())
+  fullName     String   @map("full_name")
+  phone        String?  @unique @map("phone")
+  passwordHash String?  @map("password_hash")
+  role         String   @default("rep")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  capturedLeads Lead[]    @relation("RepCapturedLeads")
+  callLogs      CallLog[]
+
+  @@map("profiles")
+}
+
+model Lead {
+  id              String   @id @default(uuid())
+  name            String
+  phone           String
+  status          String   @default("pending")
+  repId           String?  @map("assigned_to")
+  notes           String   @default("")
+  direction       String   @default("outgoing")
+  phoneNormalized String   @default("") @map("phone_normalized")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+
+  rep      Profile?  @relation("RepCapturedLeads", fields: [repId], references: [id], onDelete: SetNull)
+  callLogs CallLog[]
+
+  @@index([repId])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([status])
+  @@index([repId, status])
+  @@index([repId, createdAt])
+  @@index([repId, updatedAt])
+  @@index([repId, phoneNormalized])
+  @@map("leads")
+}
+
+model CallLog {
+  id       String   @id @default(uuid())
+  leadId   String   @map("lead_id")
+  repId    String   @map("rep_id")
+  calledAt DateTime @default(now()) @map("called_at")
+  outcome  String
+
+  lead Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  rep  Profile @relation(fields: [repId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([repId])
+  @@map("call_logs")
+}

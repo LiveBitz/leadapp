@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
+import { prismaD1 as prisma } from '@/lib/prisma-d1'
 import { createRepToken } from '@/lib/repAuth'
 
 export async function POST(req: NextRequest) {

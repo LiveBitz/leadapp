@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prismaD1 as prisma } from '@/lib/prisma-d1'
 import { getRepIdFromRequest } from '@/lib/repAuth'
 
 export async function GET(req: NextRequest) {

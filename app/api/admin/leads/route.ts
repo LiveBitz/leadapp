@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prismaD1 as prisma } from '@/lib/prisma-d1'
 import { getAdminSession } from '@/lib/session'
 
 const DEFAULT_LIMIT = 20
@@ -50,10 +50,12 @@ export async function GET(req: NextRequest) {
       }
     }
     if (q) {
+      // SQLite's contains/LIKE is already case-insensitive for standard text by
+      // default, so no `mode` option is needed (and D1 rejects it at runtime).
       where.OR = [
-        { name: { contains: q, mode: 'insensitive' } },
+        { name: { contains: q } },
         { phone: { contains: q } },
-        { rep: { fullName: { contains: q, mode: 'insensitive' } } },
+        { rep: { fullName: { contains: q } } },
       ]
     }
 

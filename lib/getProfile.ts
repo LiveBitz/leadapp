@@ -1,5 +1,5 @@
-import { prisma } from './prisma'
-import type { Profile } from '@prisma/client'
+import { prismaD1 as prisma } from './prisma-d1'
+import type { Profile } from '../node_modules/.prisma/client-d1'
 
 export type { Profile }
 
